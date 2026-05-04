@@ -108,7 +108,10 @@
     <header class="bg-white sticky top-0 z-10 shadow-sm">
         <div class="container mx-auto px-4 py-4 flex justify-between items-center">
             <h1 class="text-xl font-bold text-gray-800">好好照顾自己</h1>
-            <button id="add-btn" class="btn-primary text-sm">添加计划</button>
+            <div class="flex gap-2 items-center">
+                <button id="install-btn" class="btn-secondary text-sm">📱 添加到桌面</button>
+                <button id="add-btn" class="btn-primary text-sm">添加计划</button>
+            </div>
         </div>
     </header>
 
@@ -298,6 +301,7 @@
                     <input type="time" id="medication-time" class="w-full border border-gray-300 rounded-xl px-4 py-3 focus:outline-none focus:ring-2 focus:ring-primary" value="08:00">
                 </div>
                 <button type="submit" class="btn-primary w-full">添加</button>
+                <div id="add-error" class="hidden text-red-600 text-sm p-3 bg-red-50 rounded-lg"></div>
             </form>
         </div>
     </div>
@@ -743,6 +747,51 @@
         }
 
         // 初始化
+        let deferredPrompt = null;
+
+        // PWA安装提示处理
+        function updateInstallButtonState() {
+            const installBtn = document.getElementById('install-btn');
+            if (!installBtn) return;
+            if (deferredPrompt) {
+                installBtn.disabled = false;
+                installBtn.textContent = '📱 添加到桌面';
+            } else if (window.matchMedia('(display-mode: standalone)').matches || window.navigator.standalone === true) {
+                installBtn.disabled = true;
+                installBtn.textContent = '✅ 已安装';
+            } else {
+                installBtn.disabled = false;
+                installBtn.textContent = '📱 添加到桌面';
+            }
+        }
+
+        window.addEventListener('beforeinstallprompt', (e) => {
+            e.preventDefault();
+            deferredPrompt = e;
+            updateInstallButtonState();
+        });
+
+        window.addEventListener('appinstalled', () => {
+            console.log('应用已安装到桌面');
+            deferredPrompt = null;
+            updateInstallButtonState();
+        });
+
+        // 安装按钮点击处理
+        document.getElementById('install-btn').addEventListener('click', async () => {
+            const installBtn = document.getElementById('install-btn');
+            if (!installBtn) return;
+            if (deferredPrompt) {
+                deferredPrompt.prompt();
+                const { outcome } = await deferredPrompt.userChoice;
+                console.log(`用户选择了: ${outcome}`);
+                deferredPrompt = null;
+                updateInstallButtonState();
+            } else {
+                showToast('当前环境无法直接安装，请使用浏览器菜单中的“添加到主屏幕”或“安装应用”。');
+            }
+        });
+
         function init() {
             // 加载设置
             showMinutesToggle.checked = settings.showMinutes;
@@ -768,6 +817,9 @@
             // 设置轻提醒定时器（每分钟检查一次）
             setInterval(softReminder, 60000);
             
+            // 初始化安装按钮状态
+            updateInstallButtonState();
+            
             // 页面可见性变化时重新检查
             document.addEventListener('visibilitychange', () => {
                 if (!document.hidden) {
@@ -792,6 +844,23 @@
             setTimeout(() => {
                 toast.classList.add('hidden');
             }, 2000);
+        }
+
+        // 显示错误信息
+        function showError(message) {
+            const errorDiv = document.getElementById('add-error');
+            if (errorDiv) {
+                errorDiv.textContent = message;
+                errorDiv.classList.remove('hidden');
+            }
+        }
+
+        // 隐藏错误信息
+        function hideError() {
+            const errorDiv = document.getElementById('add-error');
+            if (errorDiv) {
+                errorDiv.classList.add('hidden');
+            }
         }
 
         // 设置服用模式监听器
@@ -1785,43 +1854,62 @@
 
         closeModal.addEventListener('click', () => {
             addModal.classList.add('hidden');
+            hideError();
         });
 
         addModal.addEventListener('click', (e) => {
             if (e.target === addModal) {
                 addModal.classList.add('hidden');
+                hideError();
             }
         });
 
         addForm.addEventListener('submit', (e) => {
             e.preventDefault();
             
-            const name = document.getElementById('medication-name').value;
-            const dose = document.getElementById('medication-dose').value;
-            const mode = document.getElementById('medication-mode').value;
-            const anchor = document.getElementById('medication-anchor').value;
-            const time = document.getElementById('medication-time').value;
-            const duration = parseInt(document.getElementById('medication-duration').value);
-            
-            const medication = {
-                id: Date.now().toString(),
-                name: name,
-                dose: dose,
-                mode: mode,
-                anchor: anchor,
-                time: time,
-                duration: duration,
-                isActive: true,
-                startDate: new Date().toISOString().split('T')[0]
-            };
-            
-            medications.push(medication);
-            localStorage.setItem('medications', JSON.stringify(medications));
-            
-            addForm.reset();
-            addModal.classList.add('hidden');
-            showToast('✅ 添加成功');
-            renderAll();
+            try {
+                const name = document.getElementById('medication-name').value.trim();
+                const dose = document.getElementById('medication-dose').value.trim();
+                const mode = document.getElementById('medication-mode').value;
+                const anchor = document.getElementById('medication-anchor').value;
+                const time = document.getElementById('medication-time').value;
+                const duration = parseInt(document.getElementById('medication-duration').value);
+                
+                // 验证必填字段
+                if (!name || !dose) {
+                    showError('项目名称和剂量不能为空');
+                    return;
+                }
+                
+                if (mode === 'short-term' && (!duration || duration < 1)) {
+                    showError('短期计划需要设定有效的持续天数');
+                    return;
+                }
+                
+                const medication = {
+                    id: Date.now().toString(),
+                    name: name,
+                    dose: dose,
+                    mode: mode,
+                    anchor: anchor,
+                    time: time,
+                    duration: duration || 1,
+                    isActive: true,
+                    startDate: new Date().toISOString().split('T')[0]
+                };
+                
+                medications.push(medication);
+                localStorage.setItem('medications', JSON.stringify(medications));
+                
+                addForm.reset();
+                addModal.classList.add('hidden');
+                hideError();
+                showToast('✅ 添加成功');
+                renderAll();
+            } catch (error) {
+                console.error('添加计划出错:', error);
+                showError('添加计划失败，请重试：' + error.message);
+            }
         });
 
         closeEditModal.addEventListener('click', () => {
