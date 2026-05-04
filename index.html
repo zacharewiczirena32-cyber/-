@@ -1,0 +1,1975 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>好好照顾自己</title>
+    
+    <!-- PWA配置 -->
+    <link rel="manifest" href="manifest.json">
+    <meta name="theme-color" content="#10b981">
+    <meta name="apple-mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-status-bar-style" content="default">
+    <meta name="apple-mobile-web-app-title" content="好好照顾自己">
+    
+    <!-- 样式 -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script>
+        tailwind.config = {
+            theme: {
+                extend: {
+                    colors: {
+                        primary: '#10b981',
+                        primaryDark: '#059669',
+                        primaryLight: '#d1fae5',
+                        warning: '#f59e0b',
+                        danger: '#ef4444'
+                    }
+                }
+            }
+        }
+    </script>
+    <style type="text/tailwindcss">
+        @layer utilities {
+            .btn-primary {
+                @apply bg-primary text-white py-3 px-4 rounded-xl font-medium active:scale-95 transition-transform;
+            }
+            .btn-secondary {
+                @apply bg-gray-100 text-gray-800 py-3 px-4 rounded-xl font-medium active:scale-95 transition-transform;
+            }
+            .btn-warning {
+                @apply bg-warning text-white py-2 px-3 rounded-lg text-sm active:scale-95 transition-transform;
+            }
+            .btn-danger {
+                @apply bg-danger text-white py-2 px-3 rounded-lg text-sm active:scale-95 transition-transform;
+            }
+            .card {
+                @apply bg-white rounded-2xl shadow-sm p-4 mb-4;
+            }
+            .toggle-switch {
+                @apply relative inline-block w-11 h-6;
+            }
+            .toggle-switch input {
+                @apply opacity-0 w-0 h-0;
+            }
+            .toggle-slider {
+                @apply absolute cursor-pointer top-0 left-0 right-0 bottom-0 bg-gray-300 transition-all rounded-full;
+            }
+            .toggle-slider:before {
+                @apply absolute content-[''] h-5 w-5 left-0.5 bottom-0.5 bg-white transition-all rounded-full;
+            }
+            input:checked + .toggle-slider {
+                @apply bg-primary;
+            }
+            input:checked + .toggle-slider:before {
+                @apply transform translate-x-5;
+            }
+            .streak-fire {
+                animation: pulse 2s infinite;
+            }
+            @keyframes pulse {
+                0% { transform: scale(1); }
+                50% { transform: scale(1.1); }
+                100% { transform: scale(1); }
+            }
+            .calendar-day {
+                @apply text-center py-2 rounded-lg cursor-pointer transition-all hover:bg-gray-100;
+            }
+            .calendar-day-empty {
+                @apply text-center py-2;
+            }
+            .calendar-day-today {
+                @apply bg-primaryDark text-white hover:bg-primary;
+            }
+            .calendar-day-recorded {
+                @apply bg-primaryLight text-primaryDark hover:bg-green-200;
+            }
+            .calendar-day-selected {
+                @apply ring-2 ring-primary ring-offset-2;
+            }
+            .progress-ring {
+                transform: rotate(-90deg);
+            }
+            .progress-ring-circle {
+                transition: stroke-dashoffset 0.5s ease-in-out;
+            }
+            .toast {
+                animation: slideUp 0.3s ease-out;
+            }
+            @keyframes slideUp {
+                from { transform: translateY(100%); opacity: 0; }
+                to { transform: translateY(0); opacity: 1; }
+            }
+        }
+    </style>
+</head>
+<body class="bg-gray-50 min-h-screen pb-20">
+    <!-- 顶部导航 -->
+    <header class="bg-white sticky top-0 z-10 shadow-sm">
+        <div class="container mx-auto px-4 py-4 flex justify-between items-center">
+            <h1 class="text-xl font-bold text-gray-800">好好照顾自己</h1>
+            <button id="add-btn" class="btn-primary text-sm">添加计划</button>
+        </div>
+    </header>
+
+    <!-- 主内容区 -->
+    <main class="container mx-auto px-4 py-4">
+        <!-- 今日完成进度卡片（最核心） -->
+        <div class="card bg-gradient-to-r from-green-500 to-emerald-600 text-white">
+            <div class="flex justify-between items-center">
+                <div>
+                    <div class="text-sm opacity-80">今日完成</div>
+                    <div class="text-4xl font-bold">
+                        <span id="today-completed">0</span>
+                        <span class="text-2xl">/</span>
+                        <span id="today-total">0</span>
+                    </div>
+                </div>
+                <div class="text-right">
+                    <div class="text-sm opacity-80">连续坚持</div>
+                    <div class="text-3xl font-bold flex items-center">
+                        <span id="current-streak" class="streak-fire">0</span>
+                        <span class="text-xl ml-1">天</span>
+                        <span class="text-xl ml-1">🔥</span>
+                    </div>
+                </div>
+            </div>
+            <!-- 进度条 -->
+            <div class="mt-4 bg-white/20 rounded-full h-2">
+                <div id="progress-bar" class="bg-white rounded-full h-2 transition-all duration-500" style="width: 0%"></div>
+            </div>
+        </div>
+
+        <!-- 生活事件触发区 -->
+        <div class="card">
+            <h2 class="text-lg font-semibold mb-3 text-gray-800">我刚</h2>
+            <div class="grid grid-cols-4 gap-3">
+                <button class="life-event-btn bg-orange-50 text-orange-600 py-3 rounded-xl text-sm font-medium active:scale-95 transition-transform" data-anchor="breakfast">
+                    🍳 吃完早餐
+                </button>
+                <button class="life-event-btn bg-yellow-50 text-yellow-600 py-3 rounded-xl text-sm font-medium active:scale-95 transition-transform" data-anchor="lunch">
+                    🍚 吃完午餐
+                </button>
+                <button class="life-event-btn bg-blue-50 text-blue-600 py-3 rounded-xl text-sm font-medium active:scale-95 transition-transform" data-anchor="dinner">
+                    🍽️ 吃完晚餐
+                </button>
+                <button class="life-event-btn bg-purple-50 text-purple-600 py-3 rounded-xl text-sm font-medium active:scale-95 transition-transform" data-anchor="sleep">
+                    🛏️ 准备睡觉
+                </button>
+            </div>
+        </div>
+
+        <!-- 今日待办卡片 -->
+        <div class="card">
+            <h2 class="text-lg font-semibold mb-3 text-gray-800">今日待办</h2>
+            <div id="medications-list" class="space-y-3">
+                <!-- 待办项会在这里动态生成 -->
+                <div class="text-center text-gray-500 py-8">
+                    点击右上角"添加计划"开始使用
+                </div>
+            </div>
+        </div>
+
+        <!-- 按需使用卡片 -->
+        <div class="card">
+            <h2 class="text-lg font-semibold mb-3 text-gray-800">按需使用</h2>
+            <div id="as-needed-list" class="space-y-3">
+                <div class="text-center text-gray-500 py-4">
+                    暂无按需使用的项目
+                </div>
+            </div>
+        </div>
+    </main>
+
+    <!-- 底部导航 -->
+    <nav class="fixed bottom-0 left-0 right-0 bg-white border-t border-gray-200">
+        <div class="container mx-auto px-4 py-3 flex justify-around">
+            <button id="tab-home" class="flex flex-col items-center text-primary">
+                <svg xmlns="http://www.w3.org/2000/svg" class="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 12l2-2m0 0l7-7 7 7M5 10v10a1 1 0 001 1h3m10-11l2 2m-2-2v10a1 1 0 01-1 1h-3m-6 0a1 1 0 001-1v-4a1 1 0 011-1h2a1 1 0 011 1v4a1 1 0 001 1m-6 0h6" />
+                </svg>
+                <span class="text-xs mt-1">首页</span>
+            </button>
+            <button id="tab-calendar" class="flex flex-col items-center text-gray-500">
+                <svg xmlns="http://www.w3.org/2000/svg" class="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" />
+                </svg>
+                <span class="text-xs mt-1">日历</span>
+            </button>
+            <button id="tab-stats" class="flex flex-col items-center text-gray-500">
+                <svg xmlns="http://www.w3.org/2000/svg" class="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z" />
+                </svg>
+                <span class="text-xs mt-1">统计</span>
+            </button>
+            <button id="tab-settings" class="flex flex-col items-center text-gray-500">
+                <svg xmlns="http://www.w3.org/2000/svg" class="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z" />
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
+                </svg>
+                <span class="text-xs mt-1">设置</span>
+            </button>
+        </div>
+    </nav>
+
+    <!-- 生活事件确认弹窗 -->
+    <div id="life-event-modal" class="fixed inset-0 bg-black/50 z-50 flex items-end justify-center hidden">
+        <div class="bg-white w-full max-w-md rounded-t-3xl p-6 pb-8">
+            <div class="flex justify-between items-center mb-6">
+                <h3 id="life-event-title" class="text-xl font-bold">早餐后要服用</h3>
+                <button id="close-life-event-modal" class="text-gray-500">
+                    <svg xmlns="http://www.w3.org/2000/svg" class="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12" />
+                    </svg>
+                </button>
+            </div>
+            <div id="life-event-list" class="space-y-3 mb-6">
+                <!-- 要服用的药物列表会在这里动态生成 -->
+            </div>
+            <button id="complete-all-btn" class="btn-primary w-full">一键全部完成</button>
+        </div>
+    </div>
+
+    <!-- 症状选择弹窗（按需服用） -->
+    <div id="symptom-modal" class="fixed inset-0 bg-black/50 z-50 flex items-end justify-center hidden">
+        <div class="bg-white w-full max-w-md rounded-t-3xl p-6 pb-8">
+            <div class="flex justify-between items-center mb-6">
+                <h3 class="text-xl font-bold">为什么要服用？</h3>
+                <button id="close-symptom-modal" class="text-gray-500">
+                    <svg xmlns="http://www.w3.org/2000/svg" class="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12" />
+                    </svg>
+                </button>
+            </div>
+            <div id="symptom-list" class="space-y-3 mb-6">
+                <button class="symptom-btn w-full text-left p-3 rounded-xl bg-gray-50 hover:bg-gray-100 transition-colors" data-symptom="头痛">😣 头痛</button>
+                <button class="symptom-btn w-full text-left p-3 rounded-xl bg-gray-50 hover:bg-gray-100 transition-colors" data-symptom="头晕">😵 头晕</button>
+                <button class="symptom-btn w-full text-left p-3 rounded-xl bg-gray-50 hover:bg-gray-100 transition-colors" data-symptom="失眠">😴 睡不着</button>
+                <button class="symptom-btn w-full text-left p-3 rounded-xl bg-gray-50 hover:bg-gray-100 transition-colors" data-symptom="胃痛">🤢 胃痛</button>
+                <button class="symptom-btn w-full text-left p-3 rounded-xl bg-gray-50 hover:bg-gray-100 transition-colors" data-symptom="其他">🤷 其他</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- 添加计划弹窗 -->
+    <div id="add-modal" class="fixed inset-0 bg-black/50 z-50 flex items-end justify-center hidden">
+        <div class="bg-white w-full max-w-md rounded-t-3xl p-6 pb-8">
+            <div class="flex justify-between items-center mb-6">
+                <h3 class="text-xl font-bold">添加计划</h3>
+                <button id="close-modal" class="text-gray-500">
+                    <svg xmlns="http://www.w3.org/2000/svg" class="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12" />
+                    </svg>
+                </button>
+            </div>
+            <form id="add-form" class="space-y-4">
+                <div>
+                    <label class="block text-sm font-medium text-gray-700 mb-1">项目名称</label>
+                    <input type="text" id="medication-name" class="w-full border border-gray-300 rounded-xl px-4 py-3 focus:outline-none focus:ring-2 focus:ring-primary" placeholder="例如：维生素D、布洛芬" required>
+                </div>
+                <div>
+                    <label class="block text-sm font-medium text-gray-700 mb-1">剂量/说明</label>
+                    <input type="text" id="medication-dose" class="w-full border border-gray-300 rounded-xl px-4 py-3 focus:outline-none focus:ring-2 focus:ring-primary" placeholder="例如：1片、1000IU" required>
+                </div>
+                <div>
+                    <label class="block text-sm font-medium text-gray-700 mb-1">计划类型</label>
+                    <select id="medication-mode" class="w-full border border-gray-300 rounded-xl px-4 py-3 focus:outline-none focus:ring-2 focus:ring-primary">
+                        <option value="long-term">长期坚持</option>
+                        <option value="short-term">短期计划</option>
+                        <option value="as-needed">按需使用</option>
+                    </select>
+                </div>
+                <div id="short-term-options" class="hidden">
+                    <label class="block text-sm font-medium text-gray-700 mb-1">持续天数</label>
+                    <input type="number" id="medication-duration" class="w-full border border-gray-300 rounded-xl px-4 py-3 focus:outline-none focus:ring-2 focus:ring-primary" placeholder="例如：7" min="1" value="7">
+                </div>
+                <div id="reminder-options">
+                    <label class="block text-sm font-medium text-gray-700 mb-1">服用时机</label>
+                    <select id="medication-anchor" class="w-full border border-gray-300 rounded-xl px-4 py-3 focus:outline-none focus:ring-2 focus:ring-primary">
+                        <option value="breakfast">早餐后</option>
+                        <option value="lunch">午餐后</option>
+                        <option value="dinner">晚餐后</option>
+                        <option value="sleep">睡前</option>
+                        <option value="custom">自定义时间</option>
+                    </select>
+                </div>
+                <div id="custom-time-options" class="hidden">
+                    <label class="block text-sm font-medium text-gray-700 mb-1">提醒时间</label>
+                    <input type="time" id="medication-time" class="w-full border border-gray-300 rounded-xl px-4 py-3 focus:outline-none focus:ring-2 focus:ring-primary" value="08:00">
+                </div>
+                <button type="submit" class="btn-primary w-full">添加</button>
+            </form>
+        </div>
+    </div>
+
+    <!-- 编辑计划弹窗 -->
+    <div id="edit-modal" class="fixed inset-0 bg-black/50 z-50 flex items-end justify-center hidden">
+        <div class="bg-white w-full max-w-md rounded-t-3xl p-6 pb-8">
+            <div class="flex justify-between items-center mb-6">
+                <h3 class="text-xl font-bold">编辑计划</h3>
+                <button id="close-edit-modal" class="text-gray-500">
+                    <svg xmlns="http://www.w3.org/2000/svg" class="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12" />
+                    </svg>
+                </button>
+            </div>
+            <form id="edit-form" class="space-y-4">
+                <input type="hidden" id="edit-medication-id">
+                <div>
+                    <label class="block text-sm font-medium text-gray-700 mb-1">项目名称</label>
+                    <input type="text" id="edit-medication-name" class="w-full border border-gray-300 rounded-xl px-4 py-3 focus:outline-none focus:ring-2 focus:ring-primary" required>
+                </div>
+                <div>
+                    <label class="block text-sm font-medium text-gray-700 mb-1">剂量/说明</label>
+                    <input type="text" id="edit-medication-dose" class="w-full border border-gray-300 rounded-xl px-4 py-3 focus:outline-none focus:ring-2 focus:ring-primary" required>
+                </div>
+                <div>
+                    <label class="block text-sm font-medium text-gray-700 mb-1">计划类型</label>
+                    <select id="edit-medication-mode" class="w-full border border-gray-300 rounded-xl px-4 py-3 focus:outline-none focus:ring-2 focus:ring-primary">
+                        <option value="long-term">长期坚持</option>
+                        <option value="short-term">短期计划</option>
+                        <option value="as-needed">按需使用</option>
+                    </select>
+                </div>
+                <div id="edit-short-term-options" class="hidden">
+                    <label class="block text-sm font-medium text-gray-700 mb-1">持续天数</label>
+                    <input type="number" id="edit-medication-duration" class="w-full border border-gray-300 rounded-xl px-4 py-3 focus:outline-none focus:ring-2 focus:ring-primary" min="1">
+                </div>
+                <div id="edit-reminder-options">
+                    <label class="block text-sm font-medium text-gray-700 mb-1">服用时机</label>
+                    <select id="edit-medication-anchor" class="w-full border border-gray-300 rounded-xl px-4 py-3 focus:outline-none focus:ring-2 focus:ring-primary">
+                        <option value="breakfast">早餐后</option>
+                        <option value="lunch">午餐后</option>
+                        <option value="dinner">晚餐后</option>
+                        <option value="sleep">睡前</option>
+                        <option value="custom">自定义时间</option>
+                    </select>
+                </div>
+                <div id="edit-custom-time-options" class="hidden">
+                    <label class="block text-sm font-medium text-gray-700 mb-1">提醒时间</label>
+                    <input type="time" id="edit-medication-time" class="w-full border border-gray-300 rounded-xl px-4 py-3 focus:outline-none focus:ring-2 focus:ring-primary">
+                </div>
+                <div class="flex space-x-3">
+                    <button type="submit" class="btn-primary flex-1">保存</button>
+                    <button type="button" id="delete-medication-btn" class="btn-danger flex-1">删除</button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <!-- 日历页面 -->
+    <div id="calendar-page" class="container mx-auto px-4 py-4 hidden">
+        <div class="card">
+            <div class="flex justify-between items-center mb-4">
+                <button id="prev-month" class="p-2 hover:bg-gray-100 rounded-lg">
+                    <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 19l-7-7 7-7" />
+                    </svg>
+                </button>
+                <h2 id="calendar-title" class="text-lg font-semibold text-gray-800">2026年5月</h2>
+                <button id="next-month" class="p-2 hover:bg-gray-100 rounded-lg">
+                    <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7" />
+                    </svg>
+                </button>
+            </div>
+            <div id="calendar-grid" class="grid grid-cols-7 gap-2">
+                <!-- 日历会在这里动态生成 -->
+            </div>
+        </div>
+
+        <!-- 选中日期的记录 -->
+        <div id="selected-date-records" class="card hidden">
+            <h2 id="selected-date-title" class="text-lg font-semibold mb-3 text-gray-800">5月4日记录</h2>
+            <div id="selected-date-mood" class="mb-3 hidden">
+                <span class="text-gray-600">状态：</span>
+                <span id="selected-date-mood-emoji" class="text-2xl"></span>
+            </div>
+            <div id="selected-date-list" class="space-y-2">
+                <!-- 选中日期的记录会在这里动态生成 -->
+            </div>
+        </div>
+    </div>
+
+    <!-- 统计页面 -->
+    <div id="stats-page" class="container mx-auto px-4 py-4 hidden">
+        <!-- 时间范围选择 -->
+        <div class="card mb-4">
+            <h2 class="text-lg font-semibold mb-3 text-gray-800">查看范围</h2>
+            <div class="flex space-x-2">
+                <button id="stats-range-7d" class="btn-primary text-sm">7天</button>
+                <button id="stats-range-30d" class="btn-secondary text-sm">30天</button>
+                <button id="stats-range-90d" class="btn-secondary text-sm">90天</button>
+                <button id="stats-range-all" class="btn-secondary text-sm">全部</button>
+            </div>
+        </div>
+
+        <div class="card">
+            <h2 class="text-lg font-semibold mb-3 text-gray-800">我的坚持</h2>
+            <div class="grid grid-cols-2 gap-4 mb-4">
+                <div class="bg-green-50 rounded-xl p-3 text-center">
+                    <div id="best-streak" class="text-2xl font-bold text-primary">0</div>
+                    <div class="text-sm text-gray-600">最长连续</div>
+                </div>
+                <div class="bg-blue-50 rounded-xl p-3 text-center">
+                    <div id="total-days" class="text-2xl font-bold text-blue-600">0</div>
+                    <div class="text-sm text-gray-600">总天数</div>
+                </div>
+            </div>
+            <div class="grid grid-cols-2 gap-4">
+                <div class="bg-yellow-50 rounded-xl p-3 text-center">
+                    <div id="completion-rate" class="text-2xl font-bold text-yellow-600">0%</div>
+                    <div class="text-sm text-gray-600">完成率</div>
+                </div>
+                <div class="bg-purple-50 rounded-xl p-3 text-center">
+                    <div id="total-records" class="text-2xl font-bold text-purple-600">0</div>
+                    <div class="text-sm text-gray-600">总记录</div>
+                </div>
+            </div>
+        </div>
+
+        <div class="card">
+            <h2 class="text-lg font-semibold mb-3 text-gray-800">身体状态趋势</h2>
+            <div id="mood-trend" class="h-48 flex items-end justify-around">
+                <!-- 状态趋势图会在这里动态生成 -->
+            </div>
+            <div class="flex justify-between items-center mt-3 text-sm text-gray-600">
+                <span id="mood-summary">身体状态：暂无数据</span>
+                <div class="flex items-center text-xs text-gray-500">
+                    <span id="trend-start-date">7天前</span>
+                    <span class="mx-2">·</span>
+                    <span id="trend-end-date">今天</span>
+                </div>
+            </div>
+        </div>
+
+        <div class="card">
+            <h2 class="text-lg font-semibold mb-3 text-gray-800">症状统计</h2>
+            <div id="symptom-stats" class="space-y-3">
+                <!-- 症状统计会在这里动态生成 -->
+            </div>
+        </div>
+
+        <div class="card">
+            <h2 class="text-lg font-semibold mb-3 text-gray-800">药物使用频率</h2>
+            <div id="medication-stats" class="space-y-3">
+                <!-- 药物统计会在这里动态生成 -->
+            </div>
+        </div>
+
+        <div class="card">
+            <h2 class="text-lg font-semibold mb-3 text-gray-800">历史记录</h2>
+            <div id="history-records" class="space-y-3 max-h-96 overflow-y-auto">
+                <!-- 历史记录会在这里动态生成 -->
+            </div>
+        </div>
+    </div>
+
+    <!-- 设置页面 -->
+    <div id="settings-page" class="container mx-auto px-4 py-4 hidden">
+        <div class="card">
+            <h2 class="text-lg font-semibold mb-3 text-gray-800">时间设置</h2>
+            <div class="space-y-4">
+                <div class="flex justify-between items-center">
+                    <div>
+                        <div class="font-medium">显示分钟</div>
+                        <div class="text-sm text-gray-500">所有时间显示精确到分钟</div>
+                    </div>
+                    <label class="toggle-switch">
+                        <input type="checkbox" id="show-minutes">
+                        <span class="toggle-slider"></span>
+                    </label>
+                </div>
+                <div class="flex justify-between items-center">
+                    <div>
+                        <div class="font-medium">跨天阈值</div>
+                        <div class="text-sm text-gray-500">凌晨几点前算前一天</div>
+                    </div>
+                    <select id="cross-day-threshold" class="border border-gray-300 rounded-lg px-3 py-1">
+                        <option value="0">0点</option>
+                        <option value="1">1点</option>
+                        <option value="2" selected>2点</option>
+                        <option value="3">3点</option>
+                        <option value="4">4点</option>
+                        <option value="5">5点</option>
+                        <option value="6">6点</option>
+                    </select>
+                </div>
+            </div>
+        </div>
+
+        <div class="card">
+            <h2 class="text-lg font-semibold mb-3 text-gray-800">提醒设置</h2>
+            <div class="space-y-4">
+                <div class="flex justify-between items-center">
+                    <div>
+                        <div class="font-medium">启用提醒</div>
+                        <div class="text-sm text-gray-500">到点推送提醒</div>
+                    </div>
+                    <label class="toggle-switch">
+                        <input type="checkbox" id="enable-notifications" checked>
+                        <span class="toggle-slider"></span>
+                    </label>
+                </div>
+            </div>
+        </div>
+
+        <div class="card">
+            <h2 class="text-lg font-semibold mb-3 text-gray-800">已停用计划</h2>
+            <div id="inactive-medications" class="space-y-3">
+                <div class="text-center text-gray-500 py-4">
+                    暂无已停用的计划
+                </div>
+            </div>
+        </div>
+
+        <div class="card">
+            <h2 class="text-lg font-semibold mb-3 text-gray-800">数据管理</h2>
+            <div class="space-y-3">
+                <button id="export-btn" class="btn-secondary w-full text-left flex justify-between items-center">
+                    <span>导出所有记录为CSV</span>
+                    <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5 text-gray-500" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7" />
+                    </svg>
+                </button>
+                <button id="clear-btn" class="btn-secondary w-full text-left text-red-600">
+                    清除所有数据
+                </button>
+            </div>
+        </div>
+
+        <div class="card">
+            <h2 class="text-lg font-semibold mb-3 text-gray-800">关于</h2>
+            <div class="text-sm text-gray-600 space-y-2">
+                <p>✅ 完全离线运行，永不联网</p>
+                <p>✅ 所有数据只保存在你的设备上</p>
+                <p>✅ 无广告、无追踪、无订阅</p>
+                <p>版本：2.2.0</p>
+            </div>
+        </div>
+    </div>
+
+    <!-- Toast提示 -->
+    <div id="toast" class="fixed bottom-24 left-1/2 transform -translate-x-1/2 bg-gray-800 text-white px-6 py-3 rounded-xl shadow-lg hidden toast">
+        <span id="toast-message">操作成功</span>
+    </div>
+
+    <script>
+        // 数据存储
+        let medications = JSON.parse(localStorage.getItem('medications') || '[]');
+        let records = JSON.parse(localStorage.getItem('records') || '[]');
+        let moods = JSON.parse(localStorage.getItem('moods') || '[]');
+        let streak = JSON.parse(localStorage.getItem('streak') || '{"current": 0, "lastCompletedDate": ""}');
+        let settings = JSON.parse(localStorage.getItem('settings') || '{"showMinutes": false, "crossDayThreshold": 2, "enableNotifications": true}');
+        
+        // 当前日历显示的年月
+        let currentCalendarYear = new Date().getFullYear();
+        let currentCalendarMonth = new Date().getMonth();
+        let selectedDate = null;
+        let currentAsNeededMedicationId = null;
+
+        // 统计页面时间范围（天数）
+        let statsTimeRange = 7;
+
+        // 生活事件锚点对应的默认时间和文本
+        const anchorConfig = {
+            'breakfast': { time: '08:00', text: '早餐后', emoji: '🍳', title: '早餐后要服用' },
+            'lunch': { time: '12:00', text: '午餐后', emoji: '🍚', title: '午餐后要服用' },
+            'dinner': { time: '18:00', text: '晚餐后', emoji: '🍽️', title: '晚餐后要服用' },
+            'sleep': { time: '22:00', text: '睡前', emoji: '🛏️', title: '睡前要服用' }
+        };
+
+        // 心情对应的表情
+        const moodEmojis = {
+            5: '😊',
+            4: '🙂',
+            3: '😐',
+            2: '😣',
+            1: '😫'
+        };
+
+        // 星期对应的中文
+        const weekdays = ['日', '一', '二', '三', '四', '五', '六'];
+
+        // 获取星期几
+        function getWeekday(date) {
+            return weekdays[new Date(date).getDay()];
+        }
+
+        // DOM元素
+        const medicationsList = document.getElementById('medications-list');
+        const asNeededList = document.getElementById('as-needed-list');
+        const addBtn = document.getElementById('add-btn');
+        const addModal = document.getElementById('add-modal');
+        const closeModal = document.getElementById('close-modal');
+        const addForm = document.getElementById('add-form');
+        const medicationMode = document.getElementById('medication-mode');
+        const shortTermOptions = document.getElementById('short-term-options');
+        const reminderOptions = document.getElementById('reminder-options');
+        const medicationAnchor = document.getElementById('medication-anchor');
+        const customTimeOptions = document.getElementById('custom-time-options');
+        const editModal = document.getElementById('edit-modal');
+        const closeEditModal = document.getElementById('close-edit-modal');
+        const editForm = document.getElementById('edit-form');
+        const editMedicationMode = document.getElementById('edit-medication-mode');
+        const editShortTermOptions = document.getElementById('edit-short-term-options');
+        const editReminderOptions = document.getElementById('edit-reminder-options');
+        const editMedicationAnchor = document.getElementById('edit-medication-anchor');
+        const editCustomTimeOptions = document.getElementById('edit-custom-time-options');
+        const deleteMedicationBtn = document.getElementById('delete-medication-btn');
+        const tabHome = document.getElementById('tab-home');
+        const tabCalendar = document.getElementById('tab-calendar');
+        const tabStats = document.getElementById('tab-stats');
+        const tabSettings = document.getElementById('tab-settings');
+        const homePage = document.querySelector('main');
+        const calendarPage = document.getElementById('calendar-page');
+        const statsPage = document.getElementById('stats-page');
+        const settingsPage = document.getElementById('settings-page');
+        const calendarGrid = document.getElementById('calendar-grid');
+        const calendarTitle = document.getElementById('calendar-title');
+        const prevMonth = document.getElementById('prev-month');
+        const nextMonth = document.getElementById('next-month');
+        const selectedDateRecords = document.getElementById('selected-date-records');
+        const selectedDateTitle = document.getElementById('selected-date-title');
+        const selectedDateMood = document.getElementById('selected-date-mood');
+        const selectedDateMoodEmoji = document.getElementById('selected-date-mood-emoji');
+        const selectedDateList = document.getElementById('selected-date-list');
+        const inactiveMedications = document.getElementById('inactive-medications');
+        const exportBtn = document.getElementById('export-btn');
+        const clearBtn = document.getElementById('clear-btn');
+        const todayCompleted = document.getElementById('today-completed');
+        const todayTotal = document.getElementById('today-total');
+        const currentStreakEl = document.getElementById('current-streak');
+        const progressBar = document.getElementById('progress-bar');
+        const bestStreak = document.getElementById('best-streak');
+        const totalDays = document.getElementById('total-days');
+        const completionRate = document.getElementById('completion-rate');
+        const totalRecords = document.getElementById('total-records');
+        const moodTrend = document.getElementById('mood-trend');
+        const showMinutesToggle = document.getElementById('show-minutes');
+        const crossDayThresholdSelect = document.getElementById('cross-day-threshold');
+        const enableNotificationsToggle = document.getElementById('enable-notifications');
+        const lifeEventModal = document.getElementById('life-event-modal');
+        const lifeEventTitle = document.getElementById('life-event-title');
+        const lifeEventList = document.getElementById('life-event-list');
+        const closeLifeEventModal = document.getElementById('close-life-event-modal');
+        const completeAllBtn = document.getElementById('complete-all-btn');
+        const symptomModal = document.getElementById('symptom-modal');
+        const closeSymptomModal = document.getElementById('close-symptom-modal');
+        const toast = document.getElementById('toast');
+        const toastMessage = document.getElementById('toast-message');
+
+        // 统计页面相关元素
+        const statsRange7d = document.getElementById('stats-range-7d');
+        const statsRange30d = document.getElementById('stats-range-30d');
+        const statsRange90d = document.getElementById('stats-range-90d');
+        const statsRangeAll = document.getElementById('stats-range-all');
+        const trendStartDate = document.getElementById('trend-start-date');
+        const trendEndDate = document.getElementById('trend-end-date');
+        const moodSummary = document.getElementById('mood-summary');
+        const symptomStats = document.getElementById('symptom-stats');
+        const medicationStats = document.getElementById('medication-stats');
+        const historyRecords = document.getElementById('history-records');
+
+        // 智能生活事件触发
+        function smartLifeEventTrigger() {
+            // 如果页面不在前台，不弹窗
+            if (document.hidden) return;
+
+            const now = new Date();
+            const hour = now.getHours();
+            const today = getLogicalDate();
+
+            const timeMap = [
+                { anchor: 'breakfast', start: 6, end: 10 },
+                { anchor: 'lunch', start: 11, end: 14 },
+                { anchor: 'dinner', start: 17, end: 20 },
+                { anchor: 'sleep', start: 21, end: 2 }
+            ];
+
+            timeMap.forEach(({ anchor, start, end }) => {
+                let inTime = false;
+
+                if (start < end) {
+                    inTime = hour >= start && hour <= end;
+                } else {
+                    // 跨天（比如睡前）
+                    inTime = hour >= start || hour <= end;
+                }
+
+                if (!inTime) return;
+
+                const hasTasks = medications.some(m =>
+                    (m.mode === 'long-term' || m.mode === 'short-term') &&
+                    m.isActive &&
+                    m.anchor === anchor &&
+                    !records.some(r =>
+                        r.medicationId === m.id &&
+                        getLogicalDate(new Date(r.time)) === today
+                    )
+                );
+
+                if (hasTasks) {
+                    // 防止一天弹多次
+                    const lastTrigger = localStorage.getItem(`trigger-${anchor}-${today}`);
+                    if (!lastTrigger) {
+                        openLifeEventModal(anchor);
+                        localStorage.setItem(`trigger-${anchor}-${today}`, '1');
+                    }
+                }
+            });
+        }
+
+        // 轻提醒功能
+        function softReminder() {
+            if (!settings.enableNotifications) return;
+
+            const now = new Date();
+            const hour = now.getHours();
+            const minute = now.getMinutes();
+
+            // 只在整点提醒一次
+            if (minute !== 0) return;
+
+            if (hour === 8) {
+                showToast('🍳 早餐后记得看看今天要做的事情');
+            } else if (hour === 12) {
+                showToast('🍚 午餐后别忘了哦');
+            } else if (hour === 18) {
+                showToast('🍽️ 晚餐后的安排来了');
+            } else if (hour === 22) {
+                showToast('🛏️ 睡前检查一下今天的任务');
+            }
+        }
+
+        // 初始化
+        function init() {
+            // 加载设置
+            showMinutesToggle.checked = settings.showMinutes;
+            crossDayThresholdSelect.value = settings.crossDayThreshold;
+            enableNotificationsToggle.checked = settings.enableNotifications;
+            
+            // 检查并更新药物状态
+            checkAndUpdateMedicationStatus();
+            
+            // 检查并更新连续打卡
+            checkAndUpdateStreak();
+            
+            renderAll();
+            setupNotifications();
+            setupAutoReset();
+            setupModeListeners();
+            setupCalendarListeners();
+            setupLifeEventListeners();
+            
+            // 智能触发检查
+            smartLifeEventTrigger();
+            
+            // 设置轻提醒定时器（每分钟检查一次）
+            setInterval(softReminder, 60000);
+            
+            // 页面可见性变化时重新检查
+            document.addEventListener('visibilitychange', () => {
+                if (!document.hidden) {
+                    smartLifeEventTrigger();
+                }
+            });
+        }
+
+        // 渲染所有内容
+        function renderAll() {
+            renderMedications();
+            renderProgress();
+            renderStreak();
+            setupSymptomListeners(); // 重新绑定症状按钮事件监听器
+        }
+
+        // 显示Toast提示
+        function showToast(message) {
+            toastMessage.textContent = message;
+            toast.classList.remove('hidden');
+            
+            setTimeout(() => {
+                toast.classList.add('hidden');
+            }, 2000);
+        }
+
+        // 设置服用模式监听器
+        function setupModeListeners() {
+            medicationMode.addEventListener('change', () => {
+                if (medicationMode.value === 'short-term') {
+                    shortTermOptions.classList.remove('hidden');
+                    reminderOptions.classList.remove('hidden');
+                } else if (medicationMode.value === 'as-needed') {
+                    shortTermOptions.classList.add('hidden');
+                    reminderOptions.classList.add('hidden');
+                } else {
+                    shortTermOptions.classList.add('hidden');
+                    reminderOptions.classList.remove('hidden');
+                }
+            });
+
+            medicationAnchor.addEventListener('change', () => {
+                if (medicationAnchor.value === 'custom') {
+                    customTimeOptions.classList.remove('hidden');
+                } else {
+                    customTimeOptions.classList.add('hidden');
+                }
+            });
+
+            editMedicationMode.addEventListener('change', () => {
+                if (editMedicationMode.value === 'short-term') {
+                    editShortTermOptions.classList.remove('hidden');
+                    editReminderOptions.classList.remove('hidden');
+                } else if (editMedicationMode.value === 'as-needed') {
+                    editShortTermOptions.classList.add('hidden');
+                    editReminderOptions.classList.add('hidden');
+                } else {
+                    editShortTermOptions.classList.add('hidden');
+                    editReminderOptions.classList.remove('hidden');
+                }
+            });
+
+            editMedicationAnchor.addEventListener('change', () => {
+                if (editMedicationAnchor.value === 'custom') {
+                    editCustomTimeOptions.classList.remove('hidden');
+                } else {
+                    editCustomTimeOptions.classList.add('hidden');
+                }
+            });
+        }
+
+        // 设置生活事件监听器
+        function setupLifeEventListeners() {
+            document.querySelectorAll('.life-event-btn').forEach(btn => {
+                btn.addEventListener('click', (e) => {
+                    const anchor = e.currentTarget.dataset.anchor;
+                    openLifeEventModal(anchor);
+                });
+            });
+
+            closeLifeEventModal.addEventListener('click', () => {
+                lifeEventModal.classList.add('hidden');
+            });
+
+            lifeEventModal.addEventListener('click', (e) => {
+                if (e.target === lifeEventModal) {
+                    lifeEventModal.classList.add('hidden');
+                }
+            });
+
+            completeAllBtn.addEventListener('click', completeAllLifeEventMedications);
+        }
+
+        // 设置症状监听器
+        function setupSymptomListeners() {
+            document.querySelectorAll('.symptom-btn').forEach(btn => {
+                btn.addEventListener('click', (e) => {
+                    const symptom = e.currentTarget.dataset.symptom;
+                    recordAsNeededMedication(symptom);
+                });
+            });
+
+            closeSymptomModal.addEventListener('click', () => {
+                symptomModal.classList.add('hidden');
+            });
+
+            symptomModal.addEventListener('click', (e) => {
+                if (e.target === symptomModal) {
+                    symptomModal.classList.add('hidden');
+                }
+            });
+        }
+
+        // 设置日历监听器
+        function setupCalendarListeners() {
+            prevMonth.addEventListener('click', () => {
+                currentCalendarMonth--;
+                if (currentCalendarMonth < 0) {
+                    currentCalendarMonth = 11;
+                    currentCalendarYear--;
+                }
+                renderCalendar();
+            });
+
+            nextMonth.addEventListener('click', () => {
+                currentCalendarMonth++;
+                if (currentCalendarMonth > 11) {
+                    currentCalendarMonth = 0;
+                    currentCalendarYear++;
+                }
+                renderCalendar();
+            });
+        }
+
+        // 打开生活事件弹窗
+        function openLifeEventModal(anchor) {
+            const config = anchorConfig[anchor];
+            lifeEventTitle.textContent = config.title;
+            
+            // 获取该时机下未服用的药物
+            const today = getLogicalDate();
+            const medicationsToTake = medications.filter(m => 
+                (m.mode === 'long-term' || m.mode === 'short-term') && 
+                m.isActive && 
+                m.anchor === anchor &&
+                !records.some(r => 
+                    r.medicationId === m.id && 
+                    getLogicalDate(new Date(r.time)) === today
+                )
+            );
+
+            if (medicationsToTake.length === 0) {
+                showToast('这个时机没有需要服用的药物');
+                return;
+            }
+
+            lifeEventList.innerHTML = '';
+            medicationsToTake.forEach(medication => {
+                const div = document.createElement('div');
+                div.className = 'flex items-center p-3 rounded-xl bg-gray-50';
+                div.innerHTML = `
+                    <input type="checkbox" class="life-event-checkbox mr-3 w-5 h-5" data-id="${medication.id}" checked>
+                    <div>
+                        <div class="font-medium">${medication.name}</div>
+                        <div class="text-sm text-gray-500">${medication.dose}</div>
+                    </div>
+                `;
+                lifeEventList.appendChild(div);
+            });
+
+            lifeEventModal.classList.remove('hidden');
+        }
+
+        // 一键完成所有生活事件药物
+        function completeAllLifeEventMedications() {
+            const checkboxes = document.querySelectorAll('.life-event-checkbox:checked');
+            let completedCount = 0;
+
+            checkboxes.forEach(checkbox => {
+                const medicationId = checkbox.dataset.id;
+                const medication = medications.find(m => m.id === medicationId);
+                
+                if (medication) {
+                    const record = {
+                        id: Date.now().toString() + Math.random().toString(36).substr(2, 9),
+                        medicationId: medicationId,
+                        name: medication.name,
+                        dose: medication.dose,
+                        time: new Date().toISOString()
+                    };
+
+                    records.push(record);
+                    completedCount++;
+                }
+            });
+
+            localStorage.setItem('records', JSON.stringify(records));
+            
+            // 更新连续打卡
+            updateStreak();
+            
+            lifeEventModal.classList.add('hidden');
+            showToast(`✅ 已完成 ${completedCount} 项`);
+            renderAll();
+        }
+
+        // 打开症状选择弹窗
+        function openSymptomModal(medicationId) {
+            currentAsNeededMedicationId = medicationId;
+            symptomModal.classList.remove('hidden');
+        }
+
+        // 记录按需服用药物
+        function recordAsNeededMedication(symptom) {
+            const medication = medications.find(m => m.id === currentAsNeededMedicationId);
+            if (!medication) return;
+
+            const record = {
+                id: Date.now().toString(),
+                medicationId: currentAsNeededMedicationId,
+                name: medication.name,
+                dose: medication.dose,
+                time: new Date().toISOString(),
+                symptom: symptom
+            };
+
+            records.push(record);
+            localStorage.setItem('records', JSON.stringify(records));
+            
+            // 更新连续打卡
+            updateStreak();
+            
+            symptomModal.classList.add('hidden');
+            showToast(`✅ 已记录 ${medication.name}`);
+            renderAll();
+        }
+
+        // 获取逻辑日期（考虑跨天阈值）
+        function getLogicalDate(date = new Date()) {
+            const d = new Date(date);
+            const hour = d.getHours();
+            
+            // 如果当前时间在跨天阈值之前，算前一天
+            if (hour < settings.crossDayThreshold) {
+                d.setDate(d.getDate() - 1);
+            }
+            
+            return `${d.getFullYear()}-${(d.getMonth() + 1).toString().padStart(2, '0')}-${d.getDate().toString().padStart(2, '0')}`;
+        }
+
+        // 格式化时间显示
+        function formatTime(date, forceShowMinutes = true) {
+            const d = new Date(date);
+            const year = d.getFullYear();
+            const month = (d.getMonth() + 1).toString().padStart(2, '0');
+            const day = d.getDate().toString().padStart(2, '0');
+            const hour = d.getHours().toString().padStart(2, '0');
+            const minute = d.getMinutes().toString().padStart(2, '0');
+            
+            if (settings.showMinutes || forceShowMinutes) {
+                return `${year}-${month}-${day} ${hour}:${minute}`;
+            } else {
+                return `${year}-${month}-${day} ${hour}时`;
+            }
+        }
+
+        // 检查并更新药物状态（到期自动停用）
+        function checkAndUpdateMedicationStatus() {
+            const today = getLogicalDate();
+            let updated = false;
+
+            medications.forEach(medication => {
+                if (medication.mode === 'short-term' && medication.isActive) {
+                    const startDate = new Date(medication.startDate);
+                    const endDate = new Date(startDate);
+                    endDate.setDate(startDate.getDate() + medication.duration - 1);
+                    const endDateStr = getLogicalDate(endDate);
+
+                    if (today > endDateStr) {
+                        medication.isActive = false;
+                        updated = true;
+                    }
+                }
+            });
+
+            if (updated) {
+                localStorage.setItem('medications', JSON.stringify(medications));
+            }
+        }
+
+        // 检查并更新连续打卡
+        function checkAndUpdateStreak() {
+            const today = getLogicalDate();
+            const yesterday = new Date(today);
+            yesterday.setDate(yesterday.getDate() - 1);
+            const yesterdayStr = getLogicalDate(yesterday);
+
+            // 如果昨天没有完成，重置连续打卡
+            if (streak.lastCompletedDate && streak.lastCompletedDate !== yesterdayStr && streak.lastCompletedDate !== today) {
+                streak.current = 0;
+            }
+
+            localStorage.setItem('streak', JSON.stringify(streak));
+        }
+
+        // 更新连续打卡
+        function updateStreak() {
+            const today = getLogicalDate();
+            
+            // 如果今天还没完成过，增加连续天数
+            if (streak.lastCompletedDate !== today) {
+                streak.current++;
+                streak.lastCompletedDate = today;
+                localStorage.setItem('streak', JSON.stringify(streak));
+            }
+        }
+
+        // 设置自动重置定时器
+        function setupAutoReset() {
+            // 每分钟检查一次
+            setInterval(() => {
+                checkAndUpdateMedicationStatus();
+                checkAndUpdateStreak();
+                
+                // 如果状态有变化，重新渲染界面
+                renderAll();
+            }, 60000);
+        }
+
+        // 计算剩余服用天数
+        function getRemainingDays(medication) {
+            if (medication.mode !== 'short-term' || !medication.isActive) {
+                return null;
+            }
+
+            const today = new Date(getLogicalDate());
+            const startDate = new Date(medication.startDate);
+            const endDate = new Date(startDate);
+            endDate.setDate(startDate.getDate() + medication.duration - 1);
+
+            const diffTime = endDate - today;
+            const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
+
+            return diffDays;
+        }
+
+        // 计算今日完成进度
+        function calculateTodayProgress() {
+            const today = getLogicalDate();
+            const activeMedications = medications.filter(m => 
+                (m.mode === 'long-term' || m.mode === 'short-term') && m.isActive
+            );
+
+            const total = activeMedications.length;
+            const completed = activeMedications.filter(m => 
+                records.some(r => 
+                    r.medicationId === m.id && 
+                    getLogicalDate(new Date(r.time)) === today
+                )
+            ).length;
+
+            return { completed, total };
+        }
+
+        // 计算最长连续打卡天数
+        function calculateBestStreak(filteredRecords = records) {
+            if (filteredRecords.length === 0) {
+                return 0;
+            }
+
+            // 获取所有有记录的日期并排序
+            const recordDates = [...new Set(filteredRecords.map(r => getLogicalDate(new Date(r.time))))].sort();
+            
+            if (recordDates.length === 0) {
+                return 0;
+            }
+
+            let bestStreak = 1;
+            let currentStreak = 1;
+
+            for (let i = 1; i < recordDates.length; i++) {
+                const prevDate = new Date(recordDates[i-1]);
+                const currDate = new Date(recordDates[i]);
+                const diffDays = (currDate - prevDate) / (1000 * 60 * 60 * 24);
+
+                if (diffDays === 1) {
+                    currentStreak++;
+                    bestStreak = Math.max(bestStreak, currentStreak);
+                } else {
+                    currentStreak = 1;
+                }
+            }
+
+            return Math.max(bestStreak, streak.current);
+        }
+
+        // 计算本月完成率
+        function calculateMonthCompletion() {
+            const today = new Date();
+            const year = today.getFullYear();
+            const month = today.getMonth();
+            
+            // 本月第一天
+            const firstDay = new Date(year, month, 1);
+            // 本月最后一天
+            const lastDay = new Date(year, month + 1, 0);
+            
+            // 本月总天数
+            const totalDays = lastDay.getDate();
+            // 本月已过天数
+            const daysPassed = today.getDate();
+            
+            // 本月有记录的天数
+            const recordDates = new Set(
+                records
+                    .map(r => getLogicalDate(new Date(r.time)))
+                    .filter(d => {
+                        const date = new Date(d);
+                        return date.getMonth() === month && date.getFullYear() === year;
+                    })
+            );
+            
+            const completedDays = recordDates.size;
+            
+            return Math.round((completedDays / daysPassed) * 100) || 0;
+        }
+
+        // 计算总完成率
+        function calculateCompletionRate(filteredRecords = records) {
+            if (filteredRecords.length === 0) {
+                return 0;
+            }
+
+            // 获取所有有记录的日期
+            const recordDates = new Set(filteredRecords.map(r => getLogicalDate(new Date(r.time))));
+            const daysWithRecords = recordDates.size;
+            
+            // 计算从第一条记录到今天的总天数
+            const firstRecordDate = new Date(Math.min(...filteredRecords.map(r => new Date(r.time).getTime())));
+            const today = new Date(getLogicalDate());
+            const totalDays = Math.ceil((today - firstRecordDate) / (1000 * 60 * 60 * 24)) + 1;
+            
+            return Math.round((daysWithRecords / totalDays) * 100) || 0;
+        }
+
+        // 渲染进度
+        function renderProgress() {
+            const { completed, total } = calculateTodayProgress();
+            todayCompleted.textContent = completed;
+            todayTotal.textContent = total;
+            
+            const percentage = total > 0 ? Math.round((completed / total) * 100) : 0;
+            progressBar.style.width = `${percentage}%`;
+        }
+
+        // 渲染连续打卡
+        function renderStreak() {
+            currentStreakEl.textContent = streak.current;
+        }
+
+        // 渲染药物列表
+        function renderMedications() {
+            medicationsList.innerHTML = '';
+            asNeededList.innerHTML = '';
+            inactiveMedications.innerHTML = '';
+
+            const activeMedications = medications.filter(m => m.isActive);
+            const inactiveMeds = medications.filter(m => !m.isActive);
+
+            if (activeMedications.length === 0) {
+                medicationsList.innerHTML = '<div class="text-center text-gray-500 py-8">点击右上角"添加计划"开始使用</div>';
+            } else {
+                activeMedications.forEach(medication => {
+                    const div = document.createElement('div');
+                    div.className = 'flex items-center justify-between p-4 bg-white rounded-xl shadow-sm mb-3';
+                    
+                    const leftDiv = document.createElement('div');
+                    leftDiv.className = 'flex-1';
+                    
+                    const nameDiv = document.createElement('div');
+                    nameDiv.className = 'font-medium text-gray-800';
+                    nameDiv.textContent = medication.name;
+                    
+                    const doseDiv = document.createElement('div');
+                    doseDiv.className = 'text-sm text-gray-500';
+                    doseDiv.textContent = medication.dose;
+                    
+                    const timeDiv = document.createElement('div');
+                    timeDiv.className = 'text-xs text-gray-400 mt-1';
+                    
+                    if (medication.mode === 'short-term') {
+                        const remaining = getRemainingDays(medication);
+                        timeDiv.textContent = `短期计划 · 还剩 ${remaining} 天`;
+                    } else if (medication.mode === 'as-needed') {
+                        timeDiv.textContent = '按需使用';
+                    } else {
+                        const anchor = anchorConfig[medication.anchor];
+                        timeDiv.textContent = `${anchor.text} · ${medication.time || anchor.time}`;
+                    }
+                    
+                    leftDiv.appendChild(nameDiv);
+                    leftDiv.appendChild(doseDiv);
+                    leftDiv.appendChild(timeDiv);
+                    
+                    const rightDiv = document.createElement('div');
+                    rightDiv.className = 'flex items-center space-x-2';
+                    
+                    if (medication.mode !== 'as-needed') {
+                        const today = getLogicalDate();
+                        const isCompleted = records.some(r => 
+                            r.medicationId === medication.id && 
+                            getLogicalDate(new Date(r.time)) === today
+                        );
+                        
+                        if (isCompleted) {
+                            const checkIcon = document.createElement('div');
+                            checkIcon.className = 'w-8 h-8 bg-green-500 rounded-full flex items-center justify-center';
+                            checkIcon.innerHTML = '<svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7" /></svg>';
+                            rightDiv.appendChild(checkIcon);
+                        } else {
+                            const takeBtn = document.createElement('button');
+                            takeBtn.className = 'btn-primary text-sm';
+                            takeBtn.textContent = '服用';
+                            takeBtn.addEventListener('click', () => takeMedication(medication.id));
+                            rightDiv.appendChild(takeBtn);
+                        }
+                    } else {
+                        const takeBtn = document.createElement('button');
+                        takeBtn.className = 'btn-primary text-sm';
+                        takeBtn.textContent = '服用';
+                        takeBtn.addEventListener('click', () => openSymptomModal(medication.id));
+                        rightDiv.appendChild(takeBtn);
+                    }
+                    
+                    const editBtn = document.createElement('button');
+                    editBtn.className = 'p-2 text-gray-500 hover:text-gray-700';
+                    editBtn.innerHTML = '<svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" /></svg>';
+                    editBtn.addEventListener('click', () => openEditModal(medication.id));
+                    rightDiv.appendChild(editBtn);
+                    
+                    div.appendChild(leftDiv);
+                    div.appendChild(rightDiv);
+                    
+                    if (medication.mode === 'as-needed') {
+                        asNeededList.appendChild(div);
+                    } else {
+                        medicationsList.appendChild(div);
+                    }
+                });
+            }
+
+            // 渲染已停用计划
+            if (inactiveMeds.length > 0) {
+                inactiveMedications.innerHTML = '';
+                inactiveMeds.forEach(medication => {
+                    const div = document.createElement('div');
+                    div.className = 'flex items-center justify-between p-3 bg-gray-50 rounded-xl';
+                    
+                    const leftDiv = document.createElement('div');
+                    const nameDiv = document.createElement('div');
+                    nameDiv.className = 'font-medium text-gray-600';
+                    nameDiv.textContent = medication.name;
+                    
+                    const doseDiv = document.createElement('div');
+                    doseDiv.className = 'text-sm text-gray-500';
+                    doseDiv.textContent = medication.dose;
+                    
+                    leftDiv.appendChild(nameDiv);
+                    leftDiv.appendChild(doseDiv);
+                    
+                    const reactivateBtn = document.createElement('button');
+                    reactivateBtn.className = 'btn-secondary text-sm';
+                    reactivateBtn.textContent = '重新启用';
+                    reactivateBtn.addEventListener('click', () => reactivateMedication(medication.id));
+                    
+                    div.appendChild(leftDiv);
+                    div.appendChild(reactivateBtn);
+                    inactiveMedications.appendChild(div);
+                });
+            } else {
+                inactiveMedications.innerHTML = '<div class="text-center text-gray-500 py-4">暂无已停用的计划</div>';
+            }
+        }
+
+        // 服用药物
+        function takeMedication(medicationId) {
+            const medication = medications.find(m => m.id === medicationId);
+            if (!medication) return;
+
+            const record = {
+                id: Date.now().toString(),
+                medicationId: medicationId,
+                name: medication.name,
+                dose: medication.dose,
+                time: new Date().toISOString()
+            };
+
+            records.push(record);
+            localStorage.setItem('records', JSON.stringify(records));
+            
+            // 更新连续打卡
+            updateStreak();
+            
+            showToast(`✅ 已记录 ${medication.name}`);
+            renderAll();
+        }
+
+        // 重新启用药物
+        function reactivateMedication(medicationId) {
+            const medication = medications.find(m => m.id === medicationId);
+            if (!medication) return;
+
+            medication.isActive = true;
+            medication.startDate = new Date().toISOString().split('T')[0];
+            localStorage.setItem('medications', JSON.stringify(medications));
+            
+            showToast(`✅ 已重新启用 ${medication.name}`);
+            renderAll();
+        }
+
+        // 打开编辑弹窗
+        function openEditModal(medicationId) {
+            const medication = medications.find(m => m.id === medicationId);
+            if (!medication) return;
+
+            document.getElementById('edit-medication-id').value = medication.id;
+            document.getElementById('edit-medication-name').value = medication.name;
+            document.getElementById('edit-medication-dose').value = medication.dose;
+            document.getElementById('edit-medication-mode').value = medication.mode;
+            
+            if (medication.mode === 'short-term') {
+                editShortTermOptions.classList.remove('hidden');
+                editReminderOptions.classList.remove('hidden');
+                document.getElementById('edit-medication-duration').value = medication.duration;
+            } else if (medication.mode === 'as-needed') {
+                editShortTermOptions.classList.add('hidden');
+                editReminderOptions.classList.add('hidden');
+            } else {
+                editShortTermOptions.classList.add('hidden');
+                editReminderOptions.classList.remove('hidden');
+            }
+            
+            document.getElementById('edit-medication-anchor').value = medication.anchor || 'breakfast';
+            
+            if (medication.anchor === 'custom') {
+                editCustomTimeOptions.classList.remove('hidden');
+                document.getElementById('edit-medication-time').value = medication.time;
+            } else {
+                editCustomTimeOptions.classList.add('hidden');
+            }
+
+            editModal.classList.remove('hidden');
+        }
+
+        // 设置通知
+        function setupNotifications() {
+            if ('Notification' in window && settings.enableNotifications) {
+                Notification.requestPermission();
+            }
+        }
+
+        // 切换页面
+        function switchPage(page) {
+            homePage.classList.add('hidden');
+            calendarPage.classList.add('hidden');
+            statsPage.classList.add('hidden');
+            settingsPage.classList.add('hidden');
+            
+            tabHome.classList.remove('text-primary');
+            tabHome.classList.add('text-gray-500');
+            tabCalendar.classList.remove('text-primary');
+            tabCalendar.classList.add('text-gray-500');
+            tabStats.classList.remove('text-primary');
+            tabStats.classList.add('text-gray-500');
+            tabSettings.classList.remove('text-primary');
+            tabSettings.classList.add('text-gray-500');
+            
+            if (page === 'home') {
+                homePage.classList.remove('hidden');
+                tabHome.classList.remove('text-gray-500');
+                tabHome.classList.add('text-primary');
+            } else if (page === 'calendar') {
+                calendarPage.classList.remove('hidden');
+                tabCalendar.classList.remove('text-gray-500');
+                tabCalendar.classList.add('text-primary');
+                renderCalendar();
+            } else if (page === 'stats') {
+                statsPage.classList.remove('hidden');
+                tabStats.classList.remove('text-gray-500');
+                tabStats.classList.add('text-primary');
+                
+                // 初始化统计范围按钮样式
+                [statsRange7d, statsRange30d, statsRange90d, statsRangeAll].forEach(btn => {
+                    btn.className = btn.className.replace('btn-primary', 'btn-secondary');
+                });
+                statsRange7d.className = statsRange7d.className.replace('btn-secondary', 'btn-primary');
+                
+                renderStats();
+            } else if (page === 'settings') {
+                settingsPage.classList.remove('hidden');
+                tabSettings.classList.remove('text-gray-500');
+                tabSettings.classList.add('text-primary');
+            }
+        }
+
+        // 渲染日历
+        function renderCalendar() {
+            const firstDayOfMonth = new Date(currentCalendarYear, currentCalendarMonth, 1);
+            calendarTitle.textContent = `${currentCalendarYear}年${currentCalendarMonth + 1}月`;
+            
+            const firstDay = new Date(currentCalendarYear, currentCalendarMonth, 1);
+            const lastDay = new Date(currentCalendarYear, currentCalendarMonth + 1, 0);
+            const startDate = new Date(firstDay);
+            startDate.setDate(startDate.getDate() - firstDay.getDay());
+            
+            calendarGrid.innerHTML = '';
+            
+            // 星期头
+            weekdays.forEach(day => {
+                const label = document.createElement('div');
+                label.className = 'text-center text-xs text-gray-500 font-medium';
+                label.textContent = `周${day}`;
+                calendarGrid.appendChild(label);
+            });
+            
+            for (let i = 0; i < 42; i++) {
+                const date = new Date(startDate);
+                date.setDate(startDate.getDate() + i);
+                
+                const dayDiv = document.createElement('div');
+                dayDiv.className = 'calendar-day';
+                
+                if (date.getMonth() !== currentCalendarMonth) {
+                    dayDiv.classList.add('calendar-day-empty');
+                    dayDiv.textContent = date.getDate();
+                } else {
+                    dayDiv.textContent = date.getDate();
+                    
+                    const dateStr = `${date.getFullYear()}-${(date.getMonth() + 1).toString().padStart(2, '0')}-${date.getDate().toString().padStart(2, '0')}`;
+                    const hasRecords = records.some(r => getLogicalDate(new Date(r.time)) === dateStr);
+                    
+                    if (hasRecords) {
+                        dayDiv.classList.add('calendar-day-recorded');
+                    }
+                    
+                    const today = new Date();
+                    const todayStr = `${today.getFullYear()}-${(today.getMonth() + 1).toString().padStart(2, '0')}-${today.getDate().toString().padStart(2, '0')}`;
+                    
+                    if (dateStr === todayStr) {
+                        dayDiv.classList.add('calendar-day-today');
+                    }
+                    
+                    if (selectedDate === dateStr) {
+                        dayDiv.classList.add('calendar-day-selected');
+                    }
+                    
+                    dayDiv.addEventListener('click', () => selectDate(dateStr));
+                }
+                
+                calendarGrid.appendChild(dayDiv);
+            }
+        }
+
+        // 选择日期
+        function selectDate(dateStr) {
+            selectedDate = dateStr;
+            renderCalendar();
+            renderSelectedDateRecords();
+        }
+
+        // 渲染选中日期的记录
+        function renderSelectedDateRecords() {
+            if (!selectedDate) {
+                selectedDateRecords.classList.add('hidden');
+                return;
+            }
+            
+            selectedDateRecords.classList.remove('hidden');
+            const date = new Date(selectedDate);
+            selectedDateTitle.textContent = `${date.getMonth() + 1}月${date.getDate()}日 星期${getWeekday(date)} 记录`;
+            
+            const dayRecords = records.filter(r => getLogicalDate(new Date(r.time)) === selectedDate);
+            const dayMood = moods.find(m => m.date === selectedDate);
+            
+            if (dayMood) {
+                selectedDateMood.classList.remove('hidden');
+                selectedDateMoodEmoji.textContent = moodEmojis[dayMood.rating];
+            } else {
+                selectedDateMood.classList.add('hidden');
+            }
+            
+            selectedDateList.innerHTML = '';
+            
+            if (dayRecords.length === 0) {
+                selectedDateList.innerHTML = '<div class="text-center text-gray-500 py-4">这一天没有记录</div>';
+            } else {
+                dayRecords.forEach(record => {
+                    const div = document.createElement('div');
+                    div.className = 'flex justify-between items-center py-2';
+                    
+                    const leftDiv = document.createElement('div');
+                    leftDiv.innerHTML = `<div class="font-medium">${record.name}</div><div class="text-sm text-gray-500">${record.dose}</div>`;
+                    
+                    const rightDiv = document.createElement('div');
+                    rightDiv.className = 'text-sm text-gray-500';
+                    rightDiv.textContent = formatTime(record.time);
+                    
+                    div.appendChild(leftDiv);
+                    div.appendChild(rightDiv);
+                    selectedDateList.appendChild(div);
+                });
+            }
+        }
+
+        // 渲染统计
+        function renderStats() {
+            // 根据时间范围过滤记录
+            const filteredRecords = getRecordsInRange(statsTimeRange);
+            const filteredMoods = getMoodsInRange(statsTimeRange);
+
+            bestStreak.textContent = calculateBestStreak(filteredRecords);
+            totalDays.textContent = [...new Set(filteredRecords.map(r => getLogicalDate(new Date(r.time))))].length;
+            completionRate.textContent = `${calculateCompletionRate(filteredRecords)}%`;
+            totalRecords.textContent = filteredRecords.length;
+            
+            // 渲染心情趋势
+            renderMoodTrend(filteredMoods);
+            
+            // 渲染症状统计
+            renderSymptomStats(filteredRecords);
+            
+            // 渲染药物统计
+            renderMedicationStats(filteredRecords);
+            
+            // 渲染历史记录
+            renderHistoryRecords(filteredRecords);
+        }
+
+        // 渲染心情趋势
+        function renderMoodTrend(filteredMoods = moods) {
+            moodTrend.innerHTML = '';
+            
+            const days = statsTimeRange === -1 ? 30 : Math.min(statsTimeRange, 30); // 最多显示30天
+            const moodValues = [];
+            
+            for (let i = days - 1; i >= 0; i--) {
+                const date = new Date();
+                date.setDate(date.getDate() - i);
+                const dateStr = getLogicalDate(date);
+                const mood = filteredMoods.find(m => m.date === dateStr);
+                
+                if (mood) moodValues.push(mood.rating);
+                
+                const bar = document.createElement('div');
+                bar.className = 'flex-1 flex flex-col items-center';
+                
+                const emojiDiv = document.createElement('div');
+                emojiDiv.className = 'text-2xl mb-1';
+                emojiDiv.textContent = mood ? moodEmojis[mood.rating] : '⬜';
+                
+                const barDiv = document.createElement('div');
+                barDiv.className = 'w-4 bg-gray-200 rounded-full';
+                barDiv.style.height = mood ? `${mood.rating * 20}px` : '4px';
+                
+                bar.appendChild(emojiDiv);
+                bar.appendChild(barDiv);
+                moodTrend.appendChild(bar);
+            }
+            
+            // 更新日期标签
+            trendStartDate.textContent = statsTimeRange === -1 ? '30天前' : `${days}天前`;
+            trendEndDate.textContent = '今天';
+
+            // 更新身体状态总结
+            if (moodValues.length === 0) {
+                moodSummary.textContent = '身体状态：暂无数据';
+            } else {
+                const averageMood = (moodValues.reduce((sum, value) => sum + value, 0) / moodValues.length).toFixed(1);
+                moodSummary.textContent = `身体状态：平均 ${averageMood} / 5`;
+            }
+        }
+
+        // 获取指定时间范围内的记录
+        function getRecordsInRange(days) {
+            if (days === -1) return records; // 全部记录
+            
+            const cutoffDate = new Date();
+            cutoffDate.setDate(cutoffDate.getDate() - days);
+            
+            return records.filter(r => new Date(r.time) >= cutoffDate);
+        }
+
+        // 获取指定时间范围内的心情
+        function getMoodsInRange(days) {
+            if (days === -1) return moods; // 全部记录
+            
+            const cutoffDate = new Date();
+            cutoffDate.setDate(cutoffDate.getDate() - days);
+            
+            return moods.filter(m => {
+                const moodDate = new Date(m.date);
+                return moodDate >= cutoffDate;
+            });
+        }
+
+        // 渲染症状统计
+        function renderSymptomStats(filteredRecords) {
+            symptomStats.innerHTML = '';
+            
+            const symptomCount = {};
+            filteredRecords.forEach(record => {
+                if (record.symptom) {
+                    symptomCount[record.symptom] = (symptomCount[record.symptom] || 0) + 1;
+                }
+            });
+            
+            const sortedSymptoms = Object.entries(symptomCount)
+                .sort(([,a], [,b]) => b - a)
+                .slice(0, 5); // 只显示前5个最常见的症状
+            
+            if (sortedSymptoms.length === 0) {
+                symptomStats.innerHTML = '<div class="text-center text-gray-500 py-4">暂无症状记录</div>';
+                return;
+            }
+            
+            sortedSymptoms.forEach(([symptom, count]) => {
+                const div = document.createElement('div');
+                div.className = 'flex justify-between items-center py-2';
+                div.innerHTML = `
+                    <span class="font-medium">${symptom}</span>
+                    <div class="flex items-center">
+                        <div class="w-20 bg-gray-200 rounded-full h-2 mr-2">
+                            <div class="bg-red-500 h-2 rounded-full" style="width: ${Math.min(count * 20, 100)}%"></div>
+                        </div>
+                        <span class="text-sm text-gray-600">${count}次</span>
+                    </div>
+                `;
+                symptomStats.appendChild(div);
+            });
+        }
+
+        // 渲染药物统计
+        function renderMedicationStats(filteredRecords) {
+            medicationStats.innerHTML = '';
+            
+            const medicationCount = {};
+            filteredRecords.forEach(record => {
+                const key = `${record.name} (${record.dose})`;
+                medicationCount[key] = (medicationCount[key] || 0) + 1;
+            });
+            
+            const sortedMedications = Object.entries(medicationCount)
+                .sort(([,a], [,b]) => b - a)
+                .slice(0, 5); // 只显示前5个最常用的药物
+            
+            if (sortedMedications.length === 0) {
+                medicationStats.innerHTML = '<div class="text-center text-gray-500 py-4">暂无药物使用记录</div>';
+                return;
+            }
+            
+            sortedMedications.forEach(([medication, count]) => {
+                const div = document.createElement('div');
+                div.className = 'flex justify-between items-center py-2';
+                div.innerHTML = `
+                    <span class="font-medium text-sm">${medication}</span>
+                    <div class="flex items-center">
+                        <div class="w-20 bg-gray-200 rounded-full h-2 mr-2">
+                            <div class="bg-blue-500 h-2 rounded-full" style="width: ${Math.min(count * 15, 100)}%"></div>
+                        </div>
+                        <span class="text-sm text-gray-600">${count}次</span>
+                    </div>
+                `;
+                medicationStats.appendChild(div);
+            });
+        }
+
+        // 渲染历史记录
+        function renderHistoryRecords(filteredRecords) {
+            historyRecords.innerHTML = '';
+            
+            const sortedRecords = filteredRecords
+                .sort((a, b) => new Date(b.time) - new Date(a.time))
+                .slice(0, 50); // 只显示最近50条记录
+            
+            if (sortedRecords.length === 0) {
+                historyRecords.innerHTML = '<div class="text-center text-gray-500 py-4">暂无历史记录</div>';
+                return;
+            }
+            
+            sortedRecords.forEach(record => {
+                const div = document.createElement('div');
+                div.className = 'flex justify-between items-center py-2 border-b border-gray-100';
+                
+                const leftDiv = document.createElement('div');
+                leftDiv.innerHTML = `
+                    <div class="font-medium">${record.name}</div>
+                    <div class="text-sm text-gray-500">${record.dose}</div>
+                    ${record.symptom ? `<div class="text-xs text-red-500">症状：${record.symptom}</div>` : ''}
+                `;
+                
+                const rightDiv = document.createElement('div');
+                rightDiv.className = 'text-sm text-gray-500 text-right';
+                rightDiv.textContent = formatTime(record.time);
+                
+                div.appendChild(leftDiv);
+                div.appendChild(rightDiv);
+                historyRecords.appendChild(div);
+            });
+        }
+
+        // 事件监听器
+        addBtn.addEventListener('click', () => {
+            addModal.classList.remove('hidden');
+        });
+
+        closeModal.addEventListener('click', () => {
+            addModal.classList.add('hidden');
+        });
+
+        addModal.addEventListener('click', (e) => {
+            if (e.target === addModal) {
+                addModal.classList.add('hidden');
+            }
+        });
+
+        addForm.addEventListener('submit', (e) => {
+            e.preventDefault();
+            
+            const name = document.getElementById('medication-name').value;
+            const dose = document.getElementById('medication-dose').value;
+            const mode = document.getElementById('medication-mode').value;
+            const anchor = document.getElementById('medication-anchor').value;
+            const time = document.getElementById('medication-time').value;
+            const duration = parseInt(document.getElementById('medication-duration').value);
+            
+            const medication = {
+                id: Date.now().toString(),
+                name: name,
+                dose: dose,
+                mode: mode,
+                anchor: anchor,
+                time: time,
+                duration: duration,
+                isActive: true,
+                startDate: new Date().toISOString().split('T')[0]
+            };
+            
+            medications.push(medication);
+            localStorage.setItem('medications', JSON.stringify(medications));
+            
+            addForm.reset();
+            addModal.classList.add('hidden');
+            showToast('✅ 添加成功');
+            renderAll();
+        });
+
+        closeEditModal.addEventListener('click', () => {
+            editModal.classList.add('hidden');
+        });
+
+        editModal.addEventListener('click', (e) => {
+            if (e.target === editModal) {
+                editModal.classList.add('hidden');
+            }
+        });
+
+        editForm.addEventListener('submit', (e) => {
+            e.preventDefault();
+            
+            const id = document.getElementById('edit-medication-id').value;
+            const name = document.getElementById('edit-medication-name').value;
+            const dose = document.getElementById('edit-medication-dose').value;
+            const mode = document.getElementById('edit-medication-mode').value;
+            const anchor = document.getElementById('edit-medication-anchor').value;
+            const time = document.getElementById('edit-medication-time').value;
+            const duration = parseInt(document.getElementById('edit-medication-duration').value);
+            
+            const medication = medications.find(m => m.id === id);
+            if (medication) {
+                medication.name = name;
+                medication.dose = dose;
+                medication.mode = mode;
+                medication.anchor = anchor;
+                medication.time = time;
+                medication.duration = duration;
+                
+                localStorage.setItem('medications', JSON.stringify(medications));
+                
+                editModal.classList.add('hidden');
+                showToast('✅ 修改成功');
+                renderAll();
+            }
+        });
+
+        deleteMedicationBtn.addEventListener('click', () => {
+            const id = document.getElementById('edit-medication-id').value;
+            const medication = medications.find(m => m.id === id);
+            
+            if (confirm(`确定要删除"${medication.name}"吗？`)) {
+                medication.isActive = false;
+                localStorage.setItem('medications', JSON.stringify(medications));
+                
+                editModal.classList.add('hidden');
+                showToast('✅ 已删除');
+                renderAll();
+            }
+        });
+
+        tabHome.addEventListener('click', () => switchPage('home'));
+        tabCalendar.addEventListener('click', () => switchPage('calendar'));
+        tabStats.addEventListener('click', () => switchPage('stats'));
+        tabSettings.addEventListener('click', () => switchPage('settings'));
+
+        showMinutesToggle.addEventListener('change', () => {
+            settings.showMinutes = showMinutesToggle.checked;
+            localStorage.setItem('settings', JSON.stringify(settings));
+            showToast('设置已保存');
+        });
+
+        crossDayThresholdSelect.addEventListener('change', () => {
+            settings.crossDayThreshold = parseInt(crossDayThresholdSelect.value);
+            localStorage.setItem('settings', JSON.stringify(settings));
+            showToast('设置已保存');
+        });
+
+        enableNotificationsToggle.addEventListener('change', () => {
+            settings.enableNotifications = enableNotificationsToggle.checked;
+            localStorage.setItem('settings', JSON.stringify(settings));
+            setupNotifications();
+            showToast('设置已保存');
+        });
+
+        exportBtn.addEventListener('click', () => {
+            const csvContent = 'data:text/csv;charset=utf-8,' + 
+                '日期,时间,项目名称,剂量,症状\n' +
+                records.map(r => {
+                    const date = new Date(r.time);
+                    return `${date.getFullYear()}-${(date.getMonth() + 1).toString().padStart(2, '0')}-${date.getDate().toString().padStart(2, '0')},${formatTime(r.time, true)},${r.name},${r.dose},${r.symptom || ''}`;
+                }).join('\n');
+            
+            const encodedUri = encodeURI(csvContent);
+            const link = document.createElement('a');
+            link.setAttribute('href', encodedUri);
+            link.setAttribute('download', 'medication_records.csv');
+            document.body.appendChild(link);
+            link.click();
+            document.body.removeChild(link);
+            
+            showToast('✅ 已导出CSV文件');
+        });
+
+        clearBtn.addEventListener('click', () => {
+            if (confirm('确定要清除所有数据吗？此操作不可恢复！')) {
+                localStorage.clear();
+                medications = [];
+                records = [];
+                moods = [];
+                streak = { current: 0, lastCompletedDate: '' };
+                settings = { showMinutes: false, crossDayThreshold: 2, enableNotifications: true };
+                
+                showToast('✅ 已清除所有数据');
+                init();
+            }
+        });
+
+        // 统计范围按钮事件监听器
+        statsRange7d.addEventListener('click', () => {
+            setStatsRange(7);
+        });
+
+        statsRange30d.addEventListener('click', () => {
+            setStatsRange(30);
+        });
+
+        statsRange90d.addEventListener('click', () => {
+            setStatsRange(90);
+        });
+
+        statsRangeAll.addEventListener('click', () => {
+            setStatsRange(-1);
+        });
+
+        // 设置统计时间范围
+        function setStatsRange(days) {
+            statsTimeRange = days;
+            
+            // 更新按钮样式
+            [statsRange7d, statsRange30d, statsRange90d, statsRangeAll].forEach(btn => {
+                btn.className = btn.className.replace('btn-primary', 'btn-secondary');
+            });
+            
+            if (days === 7) statsRange7d.className = statsRange7d.className.replace('btn-secondary', 'btn-primary');
+            else if (days === 30) statsRange30d.className = statsRange30d.className.replace('btn-secondary', 'btn-primary');
+            else if (days === 90) statsRange90d.className = statsRange90d.className.replace('btn-secondary', 'btn-primary');
+            else if (days === -1) statsRangeAll.className = statsRangeAll.className.replace('btn-secondary', 'btn-primary');
+            
+            // 重新渲染统计页面
+            renderStats();
+        }
+
+        // 初始化应用
+        init();
+    </script>
+</body>
+</html>
