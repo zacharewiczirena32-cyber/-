@@ -79,13 +79,52 @@
                 @apply text-center py-2;
             }
             .calendar-day-today {
-                @apply bg-primaryDark text-white hover:bg-primary;
+                @apply ring-2 ring-primary ring-offset-2;
             }
             .calendar-day-recorded {
                 @apply bg-primaryLight text-primaryDark hover:bg-green-200;
             }
             .calendar-day-selected {
                 @apply ring-2 ring-primary ring-offset-2;
+            }
+            .calendar-day-full {
+                @apply bg-primary text-white hover:bg-primaryDark;
+            }
+            .calendar-day-partial {
+                @apply bg-warning text-white hover:bg-amber-500;
+            }
+            .calendar-day-none {
+                @apply bg-gray-100 text-gray-700 hover:bg-gray-200;
+            }
+            .calendar-day-noplan {
+                @apply bg-gray-50 text-gray-500 hover:bg-gray-100;
+            }
+            .insight-pill {
+                @apply inline-flex items-center px-3 py-1 rounded-full text-xs font-medium;
+            }
+            .insight-good {
+                @apply bg-green-50 text-green-700;
+            }
+            .insight-warn {
+                @apply bg-amber-50 text-amber-700;
+            }
+            .insight-bad {
+                @apply bg-red-50 text-red-700;
+            }
+            .week-strip {
+                @apply flex items-center gap-1;
+            }
+            .week-dot {
+                @apply w-6 h-6 rounded-lg flex items-center justify-center text-[10px] font-semibold;
+            }
+            .week-dot-full {
+                @apply bg-primary text-white;
+            }
+            .week-dot-partial {
+                @apply bg-warning text-white;
+            }
+            .week-dot-none {
+                @apply bg-gray-200 text-gray-600;
             }
             .progress-ring {
                 transform: rotate(-90deg);
@@ -141,6 +180,24 @@
             <div class="mt-4 bg-white/20 rounded-full h-2">
                 <div id="progress-bar" class="bg-white rounded-full h-2 transition-all duration-500" style="width: 0%"></div>
             </div>
+        </div>
+
+        <div class="card">
+            <div class="flex justify-between items-start">
+                <div>
+                    <h2 class="text-lg font-semibold text-gray-800">最近7天</h2>
+                    <div class="text-sm text-gray-500">更像“反馈”，而不是“存档”</div>
+                </div>
+                <div class="text-right">
+                    <div class="text-sm text-gray-500">完成率</div>
+                    <div id="last7-rate" class="text-2xl font-bold text-primary">0%</div>
+                </div>
+            </div>
+            <div class="mt-3 flex items-center justify-between">
+                <div id="last7-strip" class="week-strip"></div>
+                <div class="text-xs text-gray-500">🟩 完成 🟨 部分 ⬜ 未完成</div>
+            </div>
+            <div id="last7-issue" class="mt-3 hidden"></div>
         </div>
 
         <!-- 生活事件触发区 -->
@@ -250,6 +307,12 @@
                 <button class="symptom-btn w-full text-left p-3 rounded-xl bg-gray-50 hover:bg-gray-100 transition-colors" data-symptom="失眠">😴 睡不着</button>
                 <button class="symptom-btn w-full text-left p-3 rounded-xl bg-gray-50 hover:bg-gray-100 transition-colors" data-symptom="胃痛">🤢 胃痛</button>
                 <button class="symptom-btn w-full text-left p-3 rounded-xl bg-gray-50 hover:bg-gray-100 transition-colors" data-symptom="其他">🤷 其他</button>
+            </div>
+            <div id="custom-symptom-container" class="hidden space-y-3 mb-4">
+                <label for="custom-symptom-input" class="text-sm font-medium text-gray-700">请描述身体不适</label>
+                <input id="custom-symptom-input" type="text" placeholder="例如：喉咙痛、腹泻、关节疼" class="w-full border border-gray-300 rounded-xl px-4 py-3 focus:outline-none focus:ring-2 focus:ring-primary" />
+                <div id="custom-symptom-error" class="hidden text-red-600 text-sm">请输入症状描述</div>
+                <button id="custom-symptom-confirm" class="btn-primary w-full">确认症状</button>
             </div>
         </div>
     </div>
@@ -385,6 +448,7 @@
         <!-- 选中日期的记录 -->
         <div id="selected-date-records" class="card hidden">
             <h2 id="selected-date-title" class="text-lg font-semibold mb-3 text-gray-800">5月4日记录</h2>
+            <div id="selected-date-summary" class="mb-3 text-sm text-gray-600"></div>
             <div id="selected-date-mood" class="mb-3 hidden">
                 <span class="text-gray-600">状态：</span>
                 <span id="selected-date-mood-emoji" class="text-2xl"></span>
@@ -406,6 +470,12 @@
                 <button id="stats-range-90d" class="btn-secondary text-sm">90天</button>
                 <button id="stats-range-all" class="btn-secondary text-sm">全部</button>
             </div>
+        </div>
+
+        <div class="card mb-4">
+            <h2 class="text-lg font-semibold mb-3 text-gray-800">自动结论</h2>
+            <div id="insights" class="flex flex-wrap gap-2"></div>
+            <div id="insights-detail" class="mt-3 space-y-2 text-sm text-gray-700"></div>
         </div>
 
         <div class="card">
@@ -462,7 +532,18 @@
         </div>
 
         <div class="card">
-            <h2 class="text-lg font-semibold mb-3 text-gray-800">历史记录</h2>
+            <div class="flex justify-between items-start mb-3">
+                <div>
+                    <h2 class="text-lg font-semibold text-gray-800">历史记录</h2>
+                    <div class="text-sm text-gray-500">按天折叠：完成/部分/未完成一眼就懂</div>
+                </div>
+                <div class="flex items-center gap-2">
+                    <button id="history-jump-today" class="btn-secondary text-sm">今天</button>
+                    <button id="history-jump-yesterday" class="btn-secondary text-sm">昨天</button>
+                    <input id="history-jump-date" type="date" class="border border-gray-300 rounded-lg px-3 py-2 text-sm" />
+                    <button id="history-jump-go" class="btn-secondary text-sm">查看</button>
+                </div>
+            </div>
             <div id="history-records" class="space-y-3 max-h-96 overflow-y-auto">
                 <!-- 历史记录会在这里动态生成 -->
             </div>
@@ -558,6 +639,26 @@
         <span id="toast-message">操作成功</span>
     </div>
 
+    <div id="confirm-delete-modal" class="fixed inset-0 bg-black/50 z-50 flex items-end justify-center hidden">
+        <div class="bg-white w-full max-w-md rounded-t-3xl p-6 pb-8">
+            <div class="flex justify-between items-center mb-4">
+                <h3 class="text-xl font-bold text-gray-800">确认删除？</h3>
+                <button id="close-confirm-delete-modal" class="text-gray-500">
+                    <svg xmlns="http://www.w3.org/2000/svg" class="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12" />
+                    </svg>
+                </button>
+            </div>
+            <div class="text-sm text-gray-600 mb-6">
+                这条历史记录删除后无法恢复。你确定要删除吗？
+            </div>
+            <div class="flex gap-3">
+                <button id="cancel-delete-record" class="btn-secondary flex-1">取消</button>
+                <button id="confirm-delete-record" class="btn-danger flex-1">删除</button>
+            </div>
+        </div>
+    </div>
+
     <script>
         // 数据存储
         let medications = JSON.parse(localStorage.getItem('medications') || '[]');
@@ -571,6 +672,7 @@
         let currentCalendarMonth = new Date().getMonth();
         let selectedDate = null;
         let currentAsNeededMedicationId = null;
+        let pendingDeleteRecordId = null;
 
         // 统计页面时间范围（天数）
         let statsTimeRange = 7;
@@ -635,6 +737,7 @@
         const nextMonth = document.getElementById('next-month');
         const selectedDateRecords = document.getElementById('selected-date-records');
         const selectedDateTitle = document.getElementById('selected-date-title');
+        const selectedDateSummary = document.getElementById('selected-date-summary');
         const selectedDateMood = document.getElementById('selected-date-mood');
         const selectedDateMoodEmoji = document.getElementById('selected-date-mood-emoji');
         const selectedDateList = document.getElementById('selected-date-list');
@@ -660,8 +763,22 @@
         const completeAllBtn = document.getElementById('complete-all-btn');
         const symptomModal = document.getElementById('symptom-modal');
         const closeSymptomModal = document.getElementById('close-symptom-modal');
+        const symptomList = document.getElementById('symptom-list');
+        const customSymptomContainer = document.getElementById('custom-symptom-container');
+        const customSymptomInput = document.getElementById('custom-symptom-input');
+        const customSymptomConfirm = document.getElementById('custom-symptom-confirm');
+        const customSymptomError = document.getElementById('custom-symptom-error');
         const toast = document.getElementById('toast');
         const toastMessage = document.getElementById('toast-message');
+        const last7Rate = document.getElementById('last7-rate');
+        const last7Strip = document.getElementById('last7-strip');
+        const last7Issue = document.getElementById('last7-issue');
+        const insights = document.getElementById('insights');
+        const insightsDetail = document.getElementById('insights-detail');
+        const confirmDeleteModal = document.getElementById('confirm-delete-modal');
+        const closeConfirmDeleteModal = document.getElementById('close-confirm-delete-modal');
+        const cancelDeleteRecordBtn = document.getElementById('cancel-delete-record');
+        const confirmDeleteRecordBtn = document.getElementById('confirm-delete-record');
 
         // 统计页面相关元素
         const statsRange7d = document.getElementById('stats-range-7d');
@@ -674,6 +791,10 @@
         const symptomStats = document.getElementById('symptom-stats');
         const medicationStats = document.getElementById('medication-stats');
         const historyRecords = document.getElementById('history-records');
+        const historyJumpToday = document.getElementById('history-jump-today');
+        const historyJumpYesterday = document.getElementById('history-jump-yesterday');
+        const historyJumpDate = document.getElementById('history-jump-date');
+        const historyJumpGo = document.getElementById('history-jump-go');
 
         // 智能生活事件触发
         function smartLifeEventTrigger() {
@@ -746,6 +867,34 @@
             }
         }
 
+        // 检查自定义时间药物提醒
+        function checkCustomTimeMedications() {
+            if (document.hidden || !settings.enableNotifications) return;
+
+            const now = new Date();
+            const currentTime = `${now.getHours().toString().padStart(2, '0')}:${now.getMinutes().toString().padStart(2, '0')}`;
+            const today = getLogicalDate();
+
+            medications.forEach(medication => {
+                if (!medication.isActive || medication.mode === 'as-needed' || medication.anchor !== 'custom' || !medication.time) return;
+
+                const hasRecordToday = records.some(r =>
+                    r.medicationId === medication.id &&
+                    getLogicalDate(new Date(r.time)) === today
+                );
+
+                if (hasRecordToday) return;
+
+                if (medication.time === currentTime) {
+                    const triggerKey = `custom-trigger-${medication.id}-${today}`;
+                    if (!localStorage.getItem(triggerKey)) {
+                        showToast(`⏰ ${medication.name} 自定义时间 ${medication.time} 已到达`);
+                        localStorage.setItem(triggerKey, '1');
+                    }
+                }
+            });
+        }
+
         // 初始化
         let deferredPrompt = null;
 
@@ -810,12 +959,18 @@
             setupModeListeners();
             setupCalendarListeners();
             setupLifeEventListeners();
+            setupRecordDeletionListeners();
+            setupHistoryNavigationListeners();
             
             // 智能触发检查
             smartLifeEventTrigger();
+            checkCustomTimeMedications();
             
             // 设置轻提醒定时器（每分钟检查一次）
-            setInterval(softReminder, 60000);
+            setInterval(() => {
+                softReminder();
+                checkCustomTimeMedications();
+            }, 60000);
             
             // 初始化安装按钮状态
             updateInstallButtonState();
@@ -824,6 +979,7 @@
             document.addEventListener('visibilitychange', () => {
                 if (!document.hidden) {
                     smartLifeEventTrigger();
+                    checkCustomTimeMedications();
                 }
             });
         }
@@ -833,6 +989,7 @@
             renderMedications();
             renderProgress();
             renderStreak();
+            renderLast7Days();
             setupSymptomListeners(); // 重新绑定症状按钮事件监听器
         }
 
@@ -861,6 +1018,31 @@
             if (errorDiv) {
                 errorDiv.classList.add('hidden');
             }
+        }
+
+        function showCustomSymptomInput() {
+            if (!customSymptomContainer) return;
+            customSymptomInput.value = '';
+            customSymptomError.classList.add('hidden');
+            customSymptomContainer.classList.remove('hidden');
+            customSymptomInput.focus();
+        }
+
+        function hideCustomSymptomInput() {
+            if (!customSymptomContainer) return;
+            customSymptomContainer.classList.add('hidden');
+            customSymptomInput.value = '';
+            customSymptomError.classList.add('hidden');
+        }
+
+        function recordCustomSymptom() {
+            const symptom = customSymptomInput.value.trim();
+            if (!symptom) {
+                customSymptomError.classList.remove('hidden');
+                return;
+            }
+            hideCustomSymptomInput();
+            recordAsNeededMedication(symptom);
         }
 
         // 设置服用模式监听器
@@ -930,24 +1112,55 @@
             completeAllBtn.addEventListener('click', completeAllLifeEventMedications);
         }
 
-        // 设置症状监听器
         function setupSymptomListeners() {
             document.querySelectorAll('.symptom-btn').forEach(btn => {
+                if (btn.dataset.bound === '1') return;
+                btn.dataset.bound = '1';
                 btn.addEventListener('click', (e) => {
                     const symptom = e.currentTarget.dataset.symptom;
+                    if (symptom === '其他') {
+                        showCustomSymptomInput();
+                        return;
+                    }
+                    hideCustomSymptomInput();
                     recordAsNeededMedication(symptom);
                 });
             });
 
-            closeSymptomModal.addEventListener('click', () => {
-                symptomModal.classList.add('hidden');
-            });
+            if (customSymptomConfirm && customSymptomConfirm.dataset.bound !== '1') {
+                customSymptomConfirm.dataset.bound = '1';
+                customSymptomConfirm.addEventListener('click', () => {
+                    recordCustomSymptom();
+                });
+            }
 
-            symptomModal.addEventListener('click', (e) => {
-                if (e.target === symptomModal) {
+            if (customSymptomInput && customSymptomInput.dataset.bound !== '1') {
+                customSymptomInput.dataset.bound = '1';
+                customSymptomInput.addEventListener('keydown', (e) => {
+                    if (e.key === 'Enter') {
+                        e.preventDefault();
+                        recordCustomSymptom();
+                    }
+                });
+            }
+
+            if (closeSymptomModal && closeSymptomModal.dataset.bound !== '1') {
+                closeSymptomModal.dataset.bound = '1';
+                closeSymptomModal.addEventListener('click', () => {
                     symptomModal.classList.add('hidden');
-                }
-            });
+                    hideCustomSymptomInput();
+                });
+            }
+
+            if (symptomModal && symptomModal.dataset.bound !== '1') {
+                symptomModal.dataset.bound = '1';
+                symptomModal.addEventListener('click', (e) => {
+                    if (e.target === symptomModal) {
+                        symptomModal.classList.add('hidden');
+                        hideCustomSymptomInput();
+                    }
+                });
+            }
         }
 
         // 设置日历监听器
@@ -1046,6 +1259,7 @@
         // 打开症状选择弹窗
         function openSymptomModal(medicationId) {
             currentAsNeededMedicationId = medicationId;
+            hideCustomSymptomInput();
             symptomModal.classList.remove('hidden');
         }
 
@@ -1161,8 +1375,14 @@
                 checkAndUpdateMedicationStatus();
                 checkAndUpdateStreak();
                 
-                // 如果状态有变化，重新渲染界面
                 renderAll();
+                if (calendarPage && !calendarPage.classList.contains('hidden')) {
+                    renderCalendar();
+                    renderSelectedDateRecords();
+                }
+                if (statsPage && !statsPage.classList.contains('hidden')) {
+                    renderStats();
+                }
             }, 60000);
         }
 
@@ -1199,6 +1419,141 @@
             ).length;
 
             return { completed, total };
+        }
+
+        function getShortTermDateRange(medication) {
+            if (!medication || medication.mode !== 'short-term' || !medication.startDate || !medication.duration) return null;
+            const startDate = new Date(medication.startDate);
+            const endDate = new Date(startDate);
+            endDate.setDate(startDate.getDate() + medication.duration - 1);
+            return {
+                start: getLogicalDate(startDate),
+                end: getLogicalDate(endDate)
+            };
+        }
+
+        function isPlannedMedicationOnDate(medication, dateStr) {
+            if (!medication || medication.mode === 'as-needed') return false;
+            if (medication.mode === 'long-term') {
+                if (!medication.isActive) return false;
+                if (medication.startDate && dateStr < medication.startDate) return false;
+                return true;
+            }
+            if (medication.mode === 'short-term') {
+                const range = getShortTermDateRange(medication);
+                if (!range) return false;
+                return dateStr >= range.start && dateStr <= range.end;
+            }
+            return false;
+        }
+
+        function getPlannedMedicationIdsForDate(dateStr) {
+            return medications
+                .filter(m => isPlannedMedicationOnDate(m, dateStr))
+                .map(m => m.id);
+        }
+
+        function getDayCompletionSummary(dateStr) {
+            const plannedIds = getPlannedMedicationIdsForDate(dateStr);
+            const total = plannedIds.length;
+            if (total === 0) {
+                return { total: 0, completed: 0, rate: null };
+            }
+            const plannedSet = new Set(plannedIds);
+            const completedSet = new Set();
+            records.forEach(r => {
+                if (getLogicalDate(new Date(r.time)) === dateStr && plannedSet.has(r.medicationId)) {
+                    completedSet.add(r.medicationId);
+                }
+            });
+            const completed = completedSet.size;
+            return { total, completed, rate: completed / total };
+        }
+
+        function parseDateStr(dateStr) {
+            return new Date(`${dateStr}T12:00:00`);
+        }
+
+        function addDaysToDateStr(dateStr, days) {
+            const d = parseDateStr(dateStr);
+            d.setDate(d.getDate() + days);
+            return getLogicalDate(d);
+        }
+
+        function getDateRangeList(startDateStr, endDateStr) {
+            const result = [];
+            if (!startDateStr || !endDateStr) return result;
+            let current = startDateStr;
+            while (current <= endDateStr) {
+                result.push(current);
+                current = addDaysToDateStr(current, 1);
+            }
+            return result;
+        }
+
+        function getFirstRecordDateStr() {
+            if (!records.length) return null;
+            const dates = records.map(r => getLogicalDate(new Date(r.time))).sort();
+            return dates[0] || null;
+        }
+
+        function getLastNDaysData(n) {
+            const days = [];
+            for (let i = n - 1; i >= 0; i--) {
+                const d = new Date();
+                d.setDate(d.getDate() - i);
+                const dateStr = getLogicalDate(d);
+                const summary = getDayCompletionSummary(dateStr);
+                days.push({ date: dateStr, ...summary });
+            }
+            return days;
+        }
+
+        function detectIssues(days) {
+            const validDays = days.filter(d => d.rate !== null);
+            const last3 = validDays.slice(-3);
+            if (last3.length === 3 && last3.every(d => d.rate < 0.5)) {
+                return { level: 'warn', text: '⚠️ 最近3天完成度偏低，试试把计划拆小或调整提醒' };
+            }
+            if (validDays.some(d => d.rate === 0)) {
+                return { level: 'warn', text: '⚠️ 最近有完全没完成的一天，睡前记得来“收尾”一下' };
+            }
+            return null;
+        }
+
+        function renderLast7Days() {
+            if (!last7Rate || !last7Strip) return;
+            const days = getLastNDaysData(7);
+            const validRates = days.filter(d => d.rate !== null).map(d => d.rate);
+            const avg = validRates.length ? Math.round((validRates.reduce((a, b) => a + b, 0) / validRates.length) * 100) : 0;
+            last7Rate.textContent = `${avg}%`;
+
+            last7Strip.innerHTML = '';
+            days.forEach(d => {
+                const dt = new Date(d.date);
+                const dot = document.createElement('div');
+                let dotClass = 'week-dot week-dot-none';
+                if (d.rate !== null) {
+                    dotClass = d.rate >= 0.999 ? 'week-dot week-dot-full' : d.rate > 0 ? 'week-dot week-dot-partial' : 'week-dot week-dot-none';
+                }
+                dot.className = dotClass;
+                dot.textContent = dt.getDate();
+                const label = `${dt.getMonth() + 1}/${dt.getDate()}`;
+                const rateText = d.rate === null ? '—' : `${Math.round(d.rate * 100)}%（${d.completed}/${d.total}）`;
+                dot.title = `${label} 完成率 ${rateText}`;
+                last7Strip.appendChild(dot);
+            });
+
+            const issue = detectIssues(days);
+            if (!last7Issue) return;
+            if (!issue) {
+                last7Issue.classList.add('hidden');
+                last7Issue.innerHTML = '';
+                return;
+            }
+            last7Issue.classList.remove('hidden');
+            const pillClass = issue.level === 'bad' ? 'insight-pill insight-bad' : issue.level === 'warn' ? 'insight-pill insight-warn' : 'insight-pill insight-good';
+            last7Issue.innerHTML = `<span class="${pillClass}">${issue.text}</span>`;
         }
 
         // 计算最长连续打卡天数
@@ -1333,8 +1688,12 @@
                     } else if (medication.mode === 'as-needed') {
                         timeDiv.textContent = '按需使用';
                     } else {
-                        const anchor = anchorConfig[medication.anchor];
-                        timeDiv.textContent = `${anchor.text} · ${medication.time || anchor.time}`;
+                        if (medication.anchor === 'custom') {
+                            timeDiv.textContent = `自定义时间 · ${medication.time || '未设置时间'}`;
+                        } else {
+                            const anchor = anchorConfig[medication.anchor] || { text: '计划时间', time: '' };
+                            timeDiv.textContent = `${anchor.text} · ${medication.time || anchor.time}`;
+                        }
                     }
                     
                     leftDiv.appendChild(nameDiv);
@@ -1576,10 +1935,19 @@
                     dayDiv.textContent = date.getDate();
                     
                     const dateStr = `${date.getFullYear()}-${(date.getMonth() + 1).toString().padStart(2, '0')}-${date.getDate().toString().padStart(2, '0')}`;
-                    const hasRecords = records.some(r => getLogicalDate(new Date(r.time)) === dateStr);
-                    
-                    if (hasRecords) {
-                        dayDiv.classList.add('calendar-day-recorded');
+                    const summary = getDayCompletionSummary(dateStr);
+                    if (summary.rate === null) {
+                        dayDiv.classList.add('calendar-day-noplan');
+                        dayDiv.title = '当天没有计划项';
+                    } else if (summary.rate >= 0.999) {
+                        dayDiv.classList.add('calendar-day-full');
+                        dayDiv.title = `完成率 ${Math.round(summary.rate * 100)}%（${summary.completed}/${summary.total}）`;
+                    } else if (summary.rate > 0) {
+                        dayDiv.classList.add('calendar-day-partial');
+                        dayDiv.title = `完成率 ${Math.round(summary.rate * 100)}%（${summary.completed}/${summary.total}）`;
+                    } else {
+                        dayDiv.classList.add('calendar-day-none');
+                        dayDiv.title = `完成率 0%（0/${summary.total}）`;
                     }
                     
                     const today = new Date();
@@ -1620,6 +1988,17 @@
             
             const dayRecords = records.filter(r => getLogicalDate(new Date(r.time)) === selectedDate);
             const dayMood = moods.find(m => m.date === selectedDate);
+            const summary = getDayCompletionSummary(selectedDate);
+
+            if (selectedDateSummary) {
+                if (summary.rate === null) {
+                    selectedDateSummary.innerHTML = `<span class="insight-pill insight-warn">当天没有计划项</span>`;
+                } else {
+                    const percent = Math.round(summary.rate * 100);
+                    const pillClass = percent >= 90 ? 'insight-pill insight-good' : percent >= 50 ? 'insight-pill insight-warn' : 'insight-pill insight-bad';
+                    selectedDateSummary.innerHTML = `<span class="${pillClass}">完成率 ${percent}%（${summary.completed}/${summary.total}）</span>`;
+                }
+            }
             
             if (dayMood) {
                 selectedDateMood.classList.remove('hidden');
@@ -1657,6 +2036,8 @@
             const filteredRecords = getRecordsInRange(statsTimeRange);
             const filteredMoods = getMoodsInRange(statsTimeRange);
 
+            renderInsights(filteredRecords);
+
             bestStreak.textContent = calculateBestStreak(filteredRecords);
             totalDays.textContent = [...new Set(filteredRecords.map(r => getLogicalDate(new Date(r.time))))].length;
             completionRate.textContent = `${calculateCompletionRate(filteredRecords)}%`;
@@ -1672,7 +2053,103 @@
             renderMedicationStats(filteredRecords);
             
             // 渲染历史记录
-            renderHistoryRecords(filteredRecords);
+            renderHistoryByDay();
+        }
+
+        function getMedicationCompletionRatesForDates(dateStrs) {
+            const dateSet = new Set(dateStrs);
+            const takenMap = new Map();
+            records.forEach(r => {
+                const d = getLogicalDate(new Date(r.time));
+                if (!dateSet.has(d)) return;
+                if (!takenMap.has(r.medicationId)) {
+                    takenMap.set(r.medicationId, new Set());
+                }
+                takenMap.get(r.medicationId).add(d);
+            });
+
+            const result = [];
+            medications.forEach(m => {
+                if (m.mode === 'as-needed') return;
+                const expectedDates = dateStrs.filter(d => isPlannedMedicationOnDate(m, d));
+                if (expectedDates.length === 0) return;
+                const taken = takenMap.get(m.id) ? takenMap.get(m.id).size : 0;
+                result.push({
+                    medicationId: m.id,
+                    name: m.name,
+                    dose: m.dose,
+                    expected: expectedDates.length,
+                    taken,
+                    rate: expectedDates.length === 0 ? 0 : taken / expectedDates.length
+                });
+            });
+            return result;
+        }
+
+        function renderInsights() {
+            if (!insights || !insightsDetail) return;
+
+            const windowDays = statsTimeRange === -1 ? 14 : Math.min(statsTimeRange, 14);
+            const days = getLastNDaysData(windowDays);
+            const validRates = days.filter(d => d.rate !== null).map(d => d.rate);
+            const avg = validRates.length ? Math.round((validRates.reduce((a, b) => a + b, 0) / validRates.length) * 100) : 0;
+
+            const issue = detectIssues(days);
+            const meds = getMedicationCompletionRatesForDates(days.map(d => d.date));
+            meds.sort((a, b) => a.rate - b.rate);
+            const worst = meds.find(m => m.expected >= 3) || null;
+            const best = [...meds].reverse().find(m => m.expected >= 3) || null;
+
+            insights.innerHTML = '';
+            insightsDetail.innerHTML = '';
+
+            if (streak.current > 0) {
+                const pill = document.createElement('span');
+                pill.className = 'insight-pill insight-good';
+                pill.textContent = `🔥 已连续坚持 ${streak.current} 天`;
+                insights.appendChild(pill);
+            }
+
+            const avgPill = document.createElement('span');
+            avgPill.className = avg >= 80 ? 'insight-pill insight-good' : avg >= 50 ? 'insight-pill insight-warn' : 'insight-pill insight-bad';
+            avgPill.textContent = `📈 近${windowDays}天平均完成 ${avg}%`;
+            insights.appendChild(avgPill);
+
+            if (issue) {
+                const pill = document.createElement('span');
+                pill.className = issue.level === 'bad' ? 'insight-pill insight-bad' : issue.level === 'warn' ? 'insight-pill insight-warn' : 'insight-pill insight-good';
+                pill.textContent = issue.text;
+                insights.appendChild(pill);
+            }
+
+            if (best && best.expected > 0) {
+                const pill = document.createElement('span');
+                pill.className = best.rate >= 0.9 ? 'insight-pill insight-good' : 'insight-pill insight-warn';
+                pill.textContent = `✅ ${best.name} ${Math.round(best.rate * 100)}%（${best.taken}/${best.expected}）`;
+                insights.appendChild(pill);
+            }
+
+            if (worst && worst.expected > 0) {
+                const pill = document.createElement('span');
+                pill.className = worst.rate < 0.5 ? 'insight-pill insight-bad' : 'insight-pill insight-warn';
+                pill.textContent = `💊 ${worst.name} ${Math.round(worst.rate * 100)}%（${worst.taken}/${worst.expected}）`;
+                insights.appendChild(pill);
+            }
+
+            const lines = [];
+            if (issue) {
+                lines.push(`<div class="flex items-start justify-between gap-3"><div class="font-medium text-gray-800">建议</div><div class="text-right text-gray-700">${issue.text.replace(/^⚠️\\s*/, '')}</div></div>`);
+            }
+            if (worst && worst.expected > 0 && worst.rate < 0.6) {
+                lines.push(`<div class="flex items-start justify-between gap-3"><div class="font-medium text-gray-800">关注</div><div class="text-right text-gray-700">“${worst.name}”完成率偏低，试试把它挂到生活事件里</div></div>`);
+            }
+            if (best && best.expected > 0 && best.rate >= 0.9) {
+                lines.push(`<div class="flex items-start justify-between gap-3"><div class="font-medium text-gray-800">亮点</div><div class="text-right text-gray-700">“${best.name}”保持得很稳</div></div>`);
+            }
+            if (lines.length === 0) {
+                lines.push(`<div class="text-gray-600">继续保持。这里会自动生成你的“趋势”和“异常”提示。</div>`);
+            }
+            insightsDetail.innerHTML = lines.join('');
         }
 
         // 渲染心情趋势
@@ -1813,38 +2290,291 @@
             });
         }
 
-        // 渲染历史记录
-        function renderHistoryRecords(filteredRecords) {
+        function renderHistoryByDay() {
+            if (!historyRecords) return;
             historyRecords.innerHTML = '';
-            
-            const sortedRecords = filteredRecords
-                .sort((a, b) => new Date(b.time) - new Date(a.time))
-                .slice(0, 50); // 只显示最近50条记录
-            
-            if (sortedRecords.length === 0) {
+
+            const firstDateStr = getFirstRecordDateStr();
+            if (!firstDateStr) {
                 historyRecords.innerHTML = '<div class="text-center text-gray-500 py-4">暂无历史记录</div>';
                 return;
             }
-            
-            sortedRecords.forEach(record => {
-                const div = document.createElement('div');
-                div.className = 'flex justify-between items-center py-2 border-b border-gray-100';
-                
-                const leftDiv = document.createElement('div');
-                leftDiv.innerHTML = `
-                    <div class="font-medium">${record.name}</div>
-                    <div class="text-sm text-gray-500">${record.dose}</div>
-                    ${record.symptom ? `<div class="text-xs text-red-500">症状：${record.symptom}</div>` : ''}
+
+            const todayStr = getLogicalDate();
+            if (historyJumpDate) {
+                historyJumpDate.min = firstDateStr;
+                historyJumpDate.max = todayStr;
+                if (!historyJumpDate.value) historyJumpDate.value = todayStr;
+            }
+            const dateList = getDateRangeList(firstDateStr, todayStr).reverse();
+
+            const medsById = new Map();
+            medications.forEach(m => medsById.set(m.id, m));
+
+            dateList.forEach((dateStr) => {
+                const summary = getDayCompletionSummary(dateStr);
+
+                let statusText = '无计划';
+                let statusClass = 'insight-pill insight-warn';
+                if (summary.rate !== null) {
+                    if (summary.rate >= 0.999) {
+                        statusText = '完成';
+                        statusClass = 'insight-pill insight-good';
+                    } else if (summary.rate > 0) {
+                        statusText = '部分完成';
+                        statusClass = 'insight-pill insight-warn';
+                    } else {
+                        statusText = '未完成';
+                        statusClass = 'insight-pill insight-bad';
+                    }
+                }
+
+                const d = parseDateStr(dateStr);
+                const title = `${d.getMonth() + 1}月${d.getDate()}日 星期${getWeekday(d)}`;
+
+                const details = document.createElement('details');
+                details.dataset.date = dateStr;
+                details.className = 'border border-gray-100 rounded-2xl overflow-hidden bg-white';
+                if (dateStr === todayStr) details.open = true;
+
+                const summaryEl = document.createElement('summary');
+                summaryEl.className = 'cursor-pointer select-none flex items-center justify-between p-4 hover:bg-gray-50';
+
+                const left = document.createElement('div');
+                left.className = 'flex flex-col';
+                left.innerHTML = `
+                    <div class="font-semibold text-gray-800">${title}</div>
+                    <div class="text-xs text-gray-500">${dateStr}</div>
                 `;
-                
-                const rightDiv = document.createElement('div');
-                rightDiv.className = 'text-sm text-gray-500 text-right';
-                rightDiv.textContent = formatTime(record.time);
-                
-                div.appendChild(leftDiv);
-                div.appendChild(rightDiv);
-                historyRecords.appendChild(div);
+
+                const right = document.createElement('div');
+                right.className = 'flex items-center gap-2';
+
+                const status = document.createElement('span');
+                status.className = statusClass;
+                if (summary.rate === null) {
+                    status.textContent = '无计划';
+                } else {
+                    status.textContent = `${statusText} ${summary.completed}/${summary.total}`;
+                }
+
+                right.appendChild(status);
+                summaryEl.appendChild(left);
+                summaryEl.appendChild(right);
+                details.appendChild(summaryEl);
+
+                const body = document.createElement('div');
+                body.className = 'px-4 pb-4 pt-2 bg-white';
+
+                const plannedMeds = medications.filter(m => isPlannedMedicationOnDate(m, dateStr));
+                const dayRecords = records
+                    .filter(r => getLogicalDate(new Date(r.time)) === dateStr)
+                    .sort((a, b) => new Date(a.time) - new Date(b.time));
+
+                const recordByMedicationId = new Map();
+                dayRecords.forEach(r => {
+                    if (!recordByMedicationId.has(r.medicationId)) recordByMedicationId.set(r.medicationId, r);
+                });
+
+                const list = document.createElement('div');
+                list.className = 'space-y-2';
+
+                if (plannedMeds.length > 0) {
+                    plannedMeds.forEach(m => {
+                        const r = recordByMedicationId.get(m.id) || null;
+                        const row = document.createElement('div');
+                        row.className = 'flex items-start justify-between gap-3 p-3 rounded-xl bg-gray-50';
+
+                        const leftCell = document.createElement('div');
+                        leftCell.className = 'min-w-0';
+                        leftCell.innerHTML = `
+                            <div class="font-medium text-gray-800 truncate">${m.name}</div>
+                            <div class="text-sm text-gray-500 truncate">${m.dose}</div>
+                        `;
+
+                        const rightCell = document.createElement('div');
+                        rightCell.className = 'flex flex-col items-end gap-2 shrink-0';
+
+                        if (r) {
+                            const timeDiv = document.createElement('div');
+                            timeDiv.className = 'text-sm text-gray-600';
+                            timeDiv.textContent = formatTime(r.time);
+
+                            const delBtn = document.createElement('button');
+                            delBtn.className = 'text-xs text-red-600 px-2 py-1 rounded-lg hover:bg-red-50';
+                            delBtn.dataset.action = 'delete-record';
+                            delBtn.dataset.recordId = r.id;
+                            delBtn.textContent = '删除';
+
+                            rightCell.appendChild(timeDiv);
+                            rightCell.appendChild(delBtn);
+                        } else {
+                            const miss = document.createElement('div');
+                            miss.className = 'text-sm font-semibold text-red-600';
+                            miss.textContent = '未吃';
+                            rightCell.appendChild(miss);
+                        }
+
+                        row.appendChild(leftCell);
+                        row.appendChild(rightCell);
+                        list.appendChild(row);
+                    });
+                }
+
+                const asNeededRecords = dayRecords.filter(r => {
+                    const m = medsById.get(r.medicationId);
+                    return (m && m.mode === 'as-needed') || (!!r.symptom && (!m || m.mode === 'as-needed'));
+                });
+
+                if (asNeededRecords.length > 0) {
+                    const header = document.createElement('div');
+                    header.className = 'mt-4 mb-2 text-xs font-semibold text-gray-500';
+                    header.textContent = '按需记录';
+                    body.appendChild(list);
+                    body.appendChild(header);
+
+                    asNeededRecords.forEach(r => {
+                        const row = document.createElement('div');
+                        row.className = 'flex items-start justify-between gap-3 p-3 rounded-xl bg-white border border-gray-100';
+
+                        const leftCell = document.createElement('div');
+                        leftCell.className = 'min-w-0';
+                        leftCell.innerHTML = `
+                            <div class="font-medium text-gray-800 truncate">${r.name}</div>
+                            <div class="text-sm text-gray-500 truncate">${r.dose || ''}</div>
+                            ${r.symptom ? `<div class="text-xs text-red-500">症状：${r.symptom}</div>` : ''}
+                        `;
+
+                        const rightCell = document.createElement('div');
+                        rightCell.className = 'flex flex-col items-end gap-2 shrink-0';
+                        rightCell.innerHTML = `<div class="text-sm text-gray-600">${formatTime(r.time)}</div>`;
+
+                        const delBtn = document.createElement('button');
+                        delBtn.className = 'text-xs text-red-600 px-2 py-1 rounded-lg hover:bg-red-50';
+                        delBtn.dataset.action = 'delete-record';
+                        delBtn.dataset.recordId = r.id;
+                        delBtn.textContent = '删除';
+
+                        rightCell.appendChild(delBtn);
+                        row.appendChild(leftCell);
+                        row.appendChild(rightCell);
+                        body.appendChild(row);
+                    });
+                } else {
+                    body.appendChild(list);
+                }
+
+                if (plannedMeds.length === 0 && dayRecords.length === 0) {
+                    body.innerHTML = '<div class="text-center text-gray-500 py-3">当天无计划且无记录</div>';
+                } else if (plannedMeds.length === 0 && dayRecords.length > 0) {
+                    const tip = document.createElement('div');
+                    tip.className = 'text-xs text-gray-500 mb-2';
+                    tip.textContent = '当天没有计划项，以下为记录内容';
+                    body.prepend(tip);
+                }
+
+                details.appendChild(body);
+                historyRecords.appendChild(details);
             });
+        }
+
+        function jumpToHistoryDate(dateStr) {
+            if (!historyRecords) return;
+            const el = historyRecords.querySelector(`details[data-date="${dateStr}"]`);
+            if (!el) {
+                showToast('未找到该日期');
+                return;
+            }
+            el.open = true;
+            el.scrollIntoView({ behavior: 'smooth', block: 'start' });
+        }
+
+        function setupHistoryNavigationListeners() {
+            if (historyJumpToday && historyJumpToday.dataset.bound !== '1') {
+                historyJumpToday.dataset.bound = '1';
+                historyJumpToday.addEventListener('click', () => jumpToHistoryDate(getLogicalDate()));
+            }
+
+            if (historyJumpYesterday && historyJumpYesterday.dataset.bound !== '1') {
+                historyJumpYesterday.dataset.bound = '1';
+                historyJumpYesterday.addEventListener('click', () => {
+                    const d = new Date();
+                    d.setDate(d.getDate() - 1);
+                    jumpToHistoryDate(getLogicalDate(d));
+                });
+            }
+
+            if (historyJumpGo && historyJumpGo.dataset.bound !== '1') {
+                historyJumpGo.dataset.bound = '1';
+                historyJumpGo.addEventListener('click', () => {
+                    const v = historyJumpDate ? historyJumpDate.value : '';
+                    if (!v) {
+                        showToast('请选择日期');
+                        return;
+                    }
+                    jumpToHistoryDate(v);
+                });
+            }
+        }
+
+        function openDeleteRecordModal(recordId) {
+            pendingDeleteRecordId = recordId;
+            if (confirmDeleteModal) confirmDeleteModal.classList.remove('hidden');
+        }
+
+        function closeDeleteRecordModal() {
+            pendingDeleteRecordId = null;
+            if (confirmDeleteModal) confirmDeleteModal.classList.add('hidden');
+        }
+
+        function confirmDeleteRecord() {
+            if (!pendingDeleteRecordId) return;
+            const before = records.length;
+            records = records.filter(r => r.id !== pendingDeleteRecordId);
+            localStorage.setItem('records', JSON.stringify(records));
+            closeDeleteRecordModal();
+            if (records.length !== before) showToast('🗑️ 已删除记录');
+            renderAll();
+            if (calendarPage && !calendarPage.classList.contains('hidden')) {
+                renderCalendar();
+                renderSelectedDateRecords();
+            }
+            if (statsPage && !statsPage.classList.contains('hidden')) {
+                renderStats();
+            }
+        }
+
+        function setupRecordDeletionListeners() {
+            if (historyRecords && historyRecords.dataset.bound !== '1') {
+                historyRecords.dataset.bound = '1';
+                historyRecords.addEventListener('click', (e) => {
+                    const btn = e.target.closest('button[data-action="delete-record"]');
+                    if (!btn) return;
+                    openDeleteRecordModal(btn.dataset.recordId);
+                });
+            }
+
+            if (confirmDeleteModal && confirmDeleteModal.dataset.bound !== '1') {
+                confirmDeleteModal.dataset.bound = '1';
+                confirmDeleteModal.addEventListener('click', (e) => {
+                    if (e.target === confirmDeleteModal) closeDeleteRecordModal();
+                });
+            }
+
+            if (closeConfirmDeleteModal && closeConfirmDeleteModal.dataset.bound !== '1') {
+                closeConfirmDeleteModal.dataset.bound = '1';
+                closeConfirmDeleteModal.addEventListener('click', closeDeleteRecordModal);
+            }
+
+            if (cancelDeleteRecordBtn && cancelDeleteRecordBtn.dataset.bound !== '1') {
+                cancelDeleteRecordBtn.dataset.bound = '1';
+                cancelDeleteRecordBtn.addEventListener('click', closeDeleteRecordModal);
+            }
+
+            if (confirmDeleteRecordBtn && confirmDeleteRecordBtn.dataset.bound !== '1') {
+                confirmDeleteRecordBtn.dataset.bound = '1';
+                confirmDeleteRecordBtn.addEventListener('click', confirmDeleteRecord);
+            }
         }
 
         // 事件监听器
@@ -1885,6 +2615,11 @@
                     showError('短期计划需要设定有效的持续天数');
                     return;
                 }
+
+                if (anchor === 'custom' && !time) {
+                    showError('请选择自定义时间');
+                    return;
+                }
                 
                 const medication = {
                     id: Date.now().toString(),
@@ -1892,7 +2627,7 @@
                     dose: dose,
                     mode: mode,
                     anchor: anchor,
-                    time: time,
+                    time: anchor === 'custom' ? time : '',
                     duration: duration || 1,
                     isActive: true,
                     startDate: new Date().toISOString().split('T')[0]
@@ -1932,6 +2667,11 @@
             const anchor = document.getElementById('edit-medication-anchor').value;
             const time = document.getElementById('edit-medication-time').value;
             const duration = parseInt(document.getElementById('edit-medication-duration').value);
+
+            if (anchor === 'custom' && !time) {
+                showToast('请选择自定义时间');
+                return;
+            }
             
             const medication = medications.find(m => m.id === id);
             if (medication) {
@@ -1939,7 +2679,7 @@
                 medication.dose = dose;
                 medication.mode = mode;
                 medication.anchor = anchor;
-                medication.time = time;
+                medication.time = anchor === 'custom' ? time : '';
                 medication.duration = duration;
                 
                 localStorage.setItem('medications', JSON.stringify(medications));
